@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Wallet, TrendingUp, Trophy } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, LogOut, Wallet, TrendingUp, Trophy, Edit } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProfileData {
@@ -20,6 +21,8 @@ const Profile = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedUsername, setEditedUsername] = useState("");
 
   useEffect(() => {
     fetchProfile();
@@ -51,7 +54,7 @@ const Profile = () => {
       .single();
 
     if (profileData && walletData && statsData) {
-      setProfile({
+      const profileObj = {
         username: profileData.username,
         email: profileData.email,
         balance: parseFloat(walletData.balance.toString()),
@@ -60,9 +63,30 @@ const Profile = () => {
         games_won: statsData.games_won,
         win_rate: parseFloat(statsData.win_rate.toString()),
         total_winnings: parseFloat(statsData.total_winnings.toString()),
-      });
+      };
+      setProfile(profileObj);
+      setEditedUsername(profileObj.username);
     }
     setLoading(false);
+  };
+
+  const handleUpdateProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: editedUsername })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error("Failed to update profile");
+      return;
+    }
+
+    toast.success("Profile updated successfully");
+    setIsEditing(false);
+    fetchProfile();
   };
 
   const handleSignOut = async () => {
@@ -109,8 +133,39 @@ const Profile = () => {
               <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-royal to-gold flex items-center justify-center text-4xl font-bold text-white">
                 {profile.username[0].toUpperCase()}
               </div>
-              <h2 className="text-2xl font-bold text-foreground">{profile.username}</h2>
-              <p className="text-muted-foreground">{profile.email}</p>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <Input
+                    value={editedUsername}
+                    onChange={(e) => setEditedUsername(e.target.value)}
+                    className="max-w-xs mx-auto"
+                    placeholder="Username"
+                  />
+                  <div className="flex gap-2 justify-center">
+                    <Button onClick={handleUpdateProfile} size="sm" className="bg-gradient-to-r from-royal to-gold">
+                      Save
+                    </Button>
+                    <Button onClick={() => setIsEditing(false)} size="sm" variant="outline">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-center gap-2">
+                    <h2 className="text-2xl font-bold text-foreground">{profile.username}</h2>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground">{profile.email}</p>
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

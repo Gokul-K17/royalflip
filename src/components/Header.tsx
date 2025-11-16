@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { User, Trophy, Wallet } from "lucide-react";
+import { User, Trophy, Wallet, Users } from "lucide-react";
 import DailyBonus from "./DailyBonus";
 
 const Header = () => {
@@ -66,6 +66,13 @@ const Header = () => {
                 onClick={() => navigate("/leaderboard")}
               >
                 <Trophy className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/referral")}
+              >
+                <Users className="w-5 h-5" />
               </Button>
               <Button
                 variant="ghost"

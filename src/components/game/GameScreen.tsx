@@ -44,7 +44,7 @@ const GameScreen = ({ betAmount, balance, onGameComplete }: GameScreenProps) => 
   const handleFlip = () => {
     setIsFlipping(true);
     
-    // Simulate coin flip result after 3 seconds
+    // Simulate coin flip result after 2 seconds (matching animation)
     setTimeout(() => {
       const flipResult: CoinSide = Math.random() > 0.5 ? "heads" : "tails";
       setResult(flipResult);
@@ -52,8 +52,8 @@ const GameScreen = ({ betAmount, balance, onGameComplete }: GameScreenProps) => 
       setTimeout(() => {
         const didWin = flipResult === playerChoice;
         onGameComplete(didWin ? "win" : "loss", didWin ? betAmount * 2 : 0);
-      }, 2000);
-    }, 3000);
+      }, 1500);
+    }, 2000);
   };
 
   return (

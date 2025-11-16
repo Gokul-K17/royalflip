@@ -88,8 +88,9 @@ export default {
           },
         },
         "flip-coin": {
-          "0%": { transform: "rotateY(0deg)" },
-          "100%": { transform: "rotateY(1800deg)" },
+          "0%": { transform: "rotateY(0deg) scale(1)" },
+          "50%": { transform: "rotateY(900deg) scale(1.1)" },
+          "100%": { transform: "rotateY(1800deg) scale(1)" },
         },
         "coin-float": {
           "0%, 100%": { transform: "translateY(0px)" },
@@ -119,7 +120,7 @@ export default {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "flip-coin": "flip-coin 3s ease-in-out",
+        "flip-coin": "flip-coin 2s cubic-bezier(0.45, 0.05, 0.55, 0.95)",
         "coin-float": "coin-float 3s ease-in-out infinite",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
         "slide-up": "slide-up 0.4s ease-out",

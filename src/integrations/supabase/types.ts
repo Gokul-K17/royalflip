@@ -48,6 +48,8 @@ export type Database = {
           last_login: string | null
           phone_number: string | null
           profile_image: string | null
+          referral_code: string | null
+          referred_by: string | null
           username: string
         }
         Insert: {
@@ -59,6 +61,8 @@ export type Database = {
           last_login?: string | null
           phone_number?: string | null
           profile_image?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           username: string
         }
         Update: {
@@ -70,7 +74,39 @@ export type Database = {
           last_login?: string | null
           phone_number?: string | null
           profile_image?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           username?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          created_at: string | null
+          id: string
+          referral_code: string
+          referred_id: string
+          referrer_id: string
+          reward_amount: number | null
+          reward_claimed: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          referral_code: string
+          referred_id: string
+          referrer_id: string
+          reward_amount?: number | null
+          reward_claimed?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          referral_code?: string
+          referred_id?: string
+          referrer_id?: string
+          reward_amount?: number | null
+          reward_claimed?: boolean | null
         }
         Relationships: []
       }
