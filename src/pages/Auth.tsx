@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,21 @@ type AuthMode = "signin" | "signup" | "forgot";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
+    const refCode = searchParams.get("ref");
+    if (refCode) {
+      setReferralCode(refCode);
+      setMode("signup"); // Auto-switch to signup if referral code is present
+    }
+
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -25,7 +33,7 @@ const Auth = () => {
       }
     };
     checkUser();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +57,7 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -62,10 +70,42 @@ const Auth = () => {
 
     if (error) {
       toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // Handle referral if referral code exists
+    if (referralCode && data.user) {
+      // Find the referrer by referral code
+      const { data: referrer } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("referral_code", referralCode)
+        .single();
+
+      if (referrer) {
+        // Update the new user's referred_by field
+        await supabase
+          .from("profiles")
+          .update({ referred_by: referrer.id })
+          .eq("id", data.user.id);
+
+        // Create referral record
+        await supabase
+          .from("referrals")
+          .insert({
+            referrer_id: referrer.id,
+            referred_id: data.user.id,
+            referral_code: referralCode,
+          });
+
+        toast.success("Account created! Referral bonus will be applied on first deposit!");
+      }
     } else {
       toast.success("Account created! Welcome bonus of ₹100 added!");
-      navigate("/");
     }
+    
+    navigate("/");
     setLoading(false);
   };
 
