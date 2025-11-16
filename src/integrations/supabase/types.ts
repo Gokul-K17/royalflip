@@ -14,7 +14,183 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      daily_bonuses: {
+        Row: {
+          bonus_amount: number
+          claimed_at: string
+          id: string
+          streak_days: number
+          user_id: string
+        }
+        Insert: {
+          bonus_amount?: number
+          claimed_at?: string
+          id?: string
+          streak_days?: number
+          user_id: string
+        }
+        Update: {
+          bonus_amount?: number
+          claimed_at?: string
+          id?: string
+          streak_days?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          account_status: string | null
+          created_at: string
+          email: string
+          id: string
+          kyc_status: string | null
+          last_login: string | null
+          phone_number: string | null
+          profile_image: string | null
+          username: string
+        }
+        Insert: {
+          account_status?: string | null
+          created_at?: string
+          email: string
+          id: string
+          kyc_status?: string | null
+          last_login?: string | null
+          phone_number?: string | null
+          profile_image?: string | null
+          username: string
+        }
+        Update: {
+          account_status?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          kyc_status?: string | null
+          last_login?: string | null
+          phone_number?: string | null
+          profile_image?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          currency: string
+          game_details: Json | null
+          id: string
+          payment_details: Json | null
+          payment_method: string | null
+          processed_at: string | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          currency?: string
+          game_details?: Json | null
+          id?: string
+          payment_details?: Json | null
+          payment_method?: string | null
+          processed_at?: string | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          currency?: string
+          game_details?: Json | null
+          id?: string
+          payment_details?: Json | null
+          payment_method?: string | null
+          processed_at?: string | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_stats: {
+        Row: {
+          games_lost: number
+          games_won: number
+          id: string
+          net_profit: number
+          total_games: number
+          total_wagered: number
+          total_winnings: number
+          updated_at: string
+          user_id: string
+          win_rate: number
+        }
+        Insert: {
+          games_lost?: number
+          games_won?: number
+          id?: string
+          net_profit?: number
+          total_games?: number
+          total_wagered?: number
+          total_winnings?: number
+          updated_at?: string
+          user_id: string
+          win_rate?: number
+        }
+        Update: {
+          games_lost?: number
+          games_won?: number
+          id?: string
+          net_profit?: number
+          total_games?: number
+          total_wagered?: number
+          total_winnings?: number
+          updated_at?: string
+          user_id?: string
+          win_rate?: number
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          bonus_balance: number
+          currency: string
+          id: string
+          last_updated: string
+          total_deposits: number
+          total_withdrawals: number
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          bonus_balance?: number
+          currency?: string
+          id?: string
+          last_updated?: string
+          total_deposits?: number
+          total_withdrawals?: number
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          bonus_balance?: number
+          currency?: string
+          id?: string
+          last_updated?: string
+          total_deposits?: number
+          total_withdrawals?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

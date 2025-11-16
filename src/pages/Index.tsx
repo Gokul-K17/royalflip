@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import ModeSelection from "@/components/game/ModeSelection";
+import Header from "@/components/Header";
 import AmountSelection from "@/components/game/AmountSelection";
 import PlayerMatching from "@/components/game/PlayerMatching";
 import GameScreen from "@/components/game/GameScreen";
@@ -9,11 +12,49 @@ export type GameMode = "money" | "choice" | "multiplayer";
 export type GameStage = "mode" | "amount" | "matching" | "game" | "result";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
   const [gameStage, setGameStage] = useState<GameStage>("mode");
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [userBalance, setUserBalance] = useState(12000);
+  const [userBalance, setUserBalance] = useState(100);
   const [gameResult, setGameResult] = useState<"win" | "loss" | null>(null);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchUserBalance(session.user.id);
+        } else {
+          navigate("/auth");
+        }
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchUserBalance(session.user.id);
+      } else {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const fetchUserBalance = async (userId: string) => {
+    const { data } = await supabase
+      .from("wallets")
+      .select("balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (data) {
+      setUserBalance(parseFloat(data.balance.toString()));
+    }
+  };
 
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
@@ -57,8 +98,11 @@ const Index = () => {
     setGameStage("mode");
   };
 
+  if (!user) return null;
+
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       {gameStage === "mode" && (
         <ModeSelection onSelectMode={handleModeSelect} balance={userBalance} />
       )}

@@ -1,3 +1,6 @@
+import coinHeads from "@/assets/coin-heads.png";
+import coinTails from "@/assets/coin-tails.png";
+
 interface CoinFlipProps {
   isFlipping: boolean;
   result: "heads" | "tails" | null;
@@ -19,25 +22,25 @@ const CoinFlip = ({ isFlipping, result }: CoinFlipProps) => {
         >
           {/* Heads Side - Lion */}
           <div
-            className="absolute inset-0 rounded-full bg-gradient-to-br from-royal to-royal-dark border-8 border-royal/30 shadow-2xl flex items-center justify-center"
+            className="absolute inset-0 rounded-full shadow-2xl flex items-center justify-center overflow-hidden"
             style={{
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
             }}
           >
-            <div className="text-8xl">🦁</div>
+            <img src={coinHeads} alt="Heads" className="w-full h-full object-cover" />
           </div>
 
           {/* Tails Side - Rupee */}
           <div
-            className="absolute inset-0 rounded-full bg-gradient-to-br from-silver/80 to-silver/40 border-8 border-silver/30 shadow-2xl flex items-center justify-center"
+            className="absolute inset-0 rounded-full shadow-2xl flex items-center justify-center overflow-hidden"
             style={{
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
             }}
           >
-            <div className="text-8xl">₹</div>
+            <img src={coinTails} alt="Tails" className="w-full h-full object-cover" />
           </div>
         </div>
       </div>
