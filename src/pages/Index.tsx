@@ -7,6 +7,8 @@ import AmountSelection from "@/components/game/AmountSelection";
 import PlayerMatching from "@/components/game/PlayerMatching";
 import GameScreen from "@/components/game/GameScreen";
 import ResultScreen from "@/components/game/ResultScreen";
+import WinTicker from "@/components/WinTicker";
+import { toast } from "sonner";
 
 export type GameMode = "money" | "choice" | "multiplayer";
 export type GameStage = "mode" | "amount" | "matching" | "game" | "result";
@@ -44,6 +46,31 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Subscribe to wallet changes for real-time balance updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('wallet-balance')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          setUserBalance(parseFloat(payload.new.balance.toString()));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchUserBalance = async (userId: string) => {
     const { data } = await supabase
       .from("wallets")
@@ -72,11 +99,93 @@ const Index = () => {
     setGameStage("game");
   };
 
-  const handleGameComplete = (result: "win" | "loss", wonAmount?: number) => {
+  const handleGameComplete = async (result: "win" | "loss", wonAmount?: number) => {
     setGameResult(result);
-    if (result === "win" && wonAmount) {
-      setUserBalance(prev => prev + wonAmount);
+    
+    if (!user || !selectedAmount) return;
+
+    try {
+      // Get current balance
+      const { data: wallet } = await supabase
+        .from("wallets")
+        .select("balance")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!wallet) return;
+
+      const currentBalance = parseFloat(wallet.balance.toString());
+      let newBalance: number;
+      let transactionType: string;
+      let transactionAmount: number;
+
+      if (result === "win" && wonAmount) {
+        // Winner gets double the entry fee (winAmount)
+        newBalance = currentBalance - selectedAmount + wonAmount;
+        transactionType = "win";
+        transactionAmount = wonAmount;
+        toast.success(`You won ₹${wonAmount}!`);
+      } else {
+        // Loser loses their entry fee
+        newBalance = currentBalance - selectedAmount;
+        transactionType = "loss";
+        transactionAmount = -selectedAmount;
+        toast.error(`You lost ₹${selectedAmount}`);
+      }
+
+      // Update wallet balance
+      await supabase
+        .from("wallets")
+        .update({ balance: newBalance })
+        .eq("user_id", user.id);
+
+      // Record transaction
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        type: transactionType,
+        amount: Math.abs(transactionAmount),
+        balance_after: newBalance,
+        status: "completed",
+        game_details: {
+          mode: selectedMode,
+          entry_fee: selectedAmount,
+          result: result,
+        },
+      });
+
+      // Update local balance
+      setUserBalance(newBalance);
+
+      // Update user stats
+      const { data: stats } = await supabase
+        .from("user_stats")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (stats) {
+        const newStats = {
+          total_games: stats.total_games + 1,
+          games_won: result === "win" ? stats.games_won + 1 : stats.games_won,
+          games_lost: result === "loss" ? stats.games_lost + 1 : stats.games_lost,
+          total_wagered: stats.total_wagered + selectedAmount,
+          total_winnings: result === "win" ? stats.total_winnings + (wonAmount || 0) : stats.total_winnings,
+          net_profit: result === "win" 
+            ? stats.net_profit + ((wonAmount || 0) - selectedAmount)
+            : stats.net_profit - selectedAmount,
+          win_rate: 0,
+        };
+        newStats.win_rate = (newStats.games_won / newStats.total_games) * 100;
+
+        await supabase
+          .from("user_stats")
+          .update(newStats)
+          .eq("user_id", user.id);
+      }
+    } catch (error) {
+      console.error("Error updating game results:", error);
     }
+
     setGameStage("result");
   };
 
@@ -103,6 +212,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <WinTicker />
+      
       {gameStage === "mode" && (
         <ModeSelection onSelectMode={handleModeSelect} balance={userBalance} />
       )}
