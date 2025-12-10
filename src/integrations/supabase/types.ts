@@ -38,6 +38,45 @@ export type Database = {
         }
         Relationships: []
       }
+      matchmaking_queue: {
+        Row: {
+          amount: number
+          choice: string
+          created_at: string
+          game_session_id: string | null
+          id: string
+          matched_at: string | null
+          matched_with: string | null
+          status: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          amount: number
+          choice: string
+          created_at?: string
+          game_session_id?: string | null
+          id?: string
+          matched_at?: string | null
+          matched_with?: string | null
+          status?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          amount?: number
+          choice?: string
+          created_at?: string
+          game_session_id?: string | null
+          id?: string
+          matched_at?: string | null
+          matched_with?: string | null
+          status?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           account_status: string | null

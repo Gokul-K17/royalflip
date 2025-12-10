@@ -8,17 +8,24 @@ import PlayerMatching from "@/components/game/PlayerMatching";
 import GameScreen from "@/components/game/GameScreen";
 import ResultScreen from "@/components/game/ResultScreen";
 import WinTicker from "@/components/WinTicker";
+import ChoiceSelection from "@/components/game/ChoiceSelection";
+import RealTimeMatching from "@/components/game/RealTimeMatching";
+import NoMatchFound from "@/components/game/NoMatchFound";
 import { toast } from "sonner";
 
 export type GameMode = "money" | "choice" | "multiplayer";
-export type GameStage = "mode" | "amount" | "matching" | "game" | "result";
+export type GameStage = "mode" | "amount" | "choice" | "matching" | "realtime-matching" | "no-match" | "game" | "result";
 
 const Index = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [username, setUsername] = useState<string>("Player");
   const [gameStage, setGameStage] = useState<GameStage>("mode");
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  const [playerChoice, setPlayerChoice] = useState<"heads" | "tails" | null>(null);
+  const [opponentInfo, setOpponentInfo] = useState<{ id: string; name: string } | null>(null);
+  const [queueId, setQueueId] = useState<string | null>(null);
   const [userBalance, setUserBalance] = useState(100);
   const [gameResult, setGameResult] = useState<"win" | "loss" | null>(null);
 
@@ -28,6 +35,7 @@ const Index = () => {
         setUser(session?.user ?? null);
         if (session?.user) {
           fetchUserBalance(session.user.id);
+          fetchUserProfile(session.user.id);
         } else {
           navigate("/auth");
         }
@@ -38,6 +46,7 @@ const Index = () => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchUserBalance(session.user.id);
+        fetchUserProfile(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -83,20 +92,64 @@ const Index = () => {
     }
   };
 
+  const fetchUserProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", userId)
+      .single();
+
+    if (data) {
+      setUsername(data.username);
+    }
+  };
+
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
     if (mode === "money") {
+      setGameStage("amount");
+    } else if (mode === "choice") {
       setGameStage("amount");
     }
   };
 
   const handleAmountSelect = (amount: number) => {
     setSelectedAmount(amount);
-    setGameStage("matching");
+    if (selectedMode === "choice") {
+      // For choice mode, go to choice selection first
+      setGameStage("choice");
+    } else {
+      // For money mode, go to simulated matching
+      setGameStage("matching");
+    }
+  };
+
+  const handleChoiceSelected = (choice: "heads" | "tails") => {
+    setPlayerChoice(choice);
+    setGameStage("realtime-matching");
   };
 
   const handleMatchFound = () => {
     setGameStage("game");
+  };
+
+  const handleRealTimeMatchFound = (opponentId: string, opponentName: string, matchQueueId: string) => {
+    setOpponentInfo({ id: opponentId, name: opponentName });
+    setQueueId(matchQueueId);
+    setGameStage("game");
+  };
+
+  const handleNoMatch = () => {
+    setGameStage("no-match");
+  };
+
+  const handleRetryMatching = () => {
+    setGameStage("realtime-matching");
+  };
+
+  const handleCancelMatching = () => {
+    setPlayerChoice(null);
+    setGameStage("choice");
   };
 
   const handleGameComplete = async (result: "win" | "loss", wonAmount?: number) => {
@@ -150,6 +203,8 @@ const Index = () => {
           mode: selectedMode,
           entry_fee: selectedAmount,
           result: result,
+          player_choice: playerChoice,
+          opponent: opponentInfo,
         },
       });
 
@@ -191,12 +246,22 @@ const Index = () => {
 
   const handleRematch = () => {
     setGameResult(null);
-    setGameStage("matching");
+    setOpponentInfo(null);
+    setQueueId(null);
+    if (selectedMode === "choice") {
+      setPlayerChoice(null);
+      setGameStage("choice");
+    } else {
+      setGameStage("matching");
+    }
   };
 
   const handleBackToAmount = () => {
     setGameResult(null);
     setSelectedAmount(null);
+    setPlayerChoice(null);
+    setOpponentInfo(null);
+    setQueueId(null);
     setGameStage("amount");
   };
 
@@ -204,7 +269,15 @@ const Index = () => {
     setGameResult(null);
     setSelectedAmount(null);
     setSelectedMode(null);
+    setPlayerChoice(null);
+    setOpponentInfo(null);
+    setQueueId(null);
     setGameStage("mode");
+  };
+
+  const handleBackToChoice = () => {
+    setPlayerChoice(null);
+    setGameStage("choice");
   };
 
   if (!user) return null;
@@ -225,6 +298,36 @@ const Index = () => {
           balance={userBalance}
         />
       )}
+
+      {gameStage === "choice" && selectedAmount && (
+        <ChoiceSelection
+          amount={selectedAmount}
+          balance={userBalance}
+          onChoiceSelected={handleChoiceSelected}
+          onBack={handleBackToAmount}
+        />
+      )}
+
+      {gameStage === "realtime-matching" && selectedAmount && playerChoice && (
+        <RealTimeMatching
+          amount={selectedAmount}
+          playerChoice={playerChoice}
+          balance={userBalance}
+          userId={user.id}
+          username={username}
+          onMatchFound={handleRealTimeMatchFound}
+          onNoMatch={handleNoMatch}
+          onCancel={handleCancelMatching}
+        />
+      )}
+
+      {gameStage === "no-match" && playerChoice && (
+        <NoMatchFound
+          playerChoice={playerChoice}
+          onRetry={handleRetryMatching}
+          onBack={handleBackToChoice}
+        />
+      )}
       
       {gameStage === "matching" && selectedAmount && (
         <PlayerMatching
@@ -239,6 +342,8 @@ const Index = () => {
           betAmount={selectedAmount}
           balance={userBalance}
           onGameComplete={handleGameComplete}
+          playerChoice={playerChoice}
+          opponentInfo={opponentInfo}
         />
       )}
       
