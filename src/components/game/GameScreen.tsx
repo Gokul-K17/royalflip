@@ -8,17 +8,19 @@ interface GameScreenProps {
   betAmount: number;
   balance: number;
   onGameComplete: (result: "win" | "loss", wonAmount?: number) => void;
+  playerChoice?: "heads" | "tails" | null;
+  opponentInfo?: { id: string; name: string } | null;
 }
 
 type CoinSide = "heads" | "tails" | null;
 
-const GameScreen = ({ betAmount, balance, onGameComplete }: GameScreenProps) => {
-  const [playerChoice, setPlayerChoice] = useState<CoinSide>(null);
-  const [opponentChoice, setOpponentChoice] = useState<CoinSide>(null);
-  const [timeLeft, setTimeLeft] = useState(10);
+const GameScreen = ({ betAmount, balance, onGameComplete, playerChoice: preSelectedChoice, opponentInfo }: GameScreenProps) => {
+  const [playerChoice, setPlayerChoice] = useState<CoinSide>(preSelectedChoice || null);
+  const [opponentChoice, setOpponentChoice] = useState<CoinSide>(preSelectedChoice ? (preSelectedChoice === "heads" ? "tails" : "heads") : null);
+  const [timeLeft, setTimeLeft] = useState(preSelectedChoice ? 0 : 10); // Skip countdown if choice is pre-selected
   const [isFlipping, setIsFlipping] = useState(false);
   const [result, setResult] = useState<CoinSide>(null);
-
+  const hasPreSelectedChoice = !!preSelectedChoice;
   // Win amount is double the entry fee
   const winAmount = betAmount * 2;
 
@@ -132,7 +134,9 @@ const GameScreen = ({ betAmount, balance, onGameComplete }: GameScreenProps) => 
             </div>
           </div>
           <div className="text-center p-4 bg-gradient-to-br from-gold/20 to-gold/5 rounded-xl border border-gold/40 shadow-lg">
-            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Opponent</div>
+            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">
+              {opponentInfo ? opponentInfo.name : "Opponent"}
+            </div>
             <div className="text-xl font-bold text-gold">
               {opponentChoice ? opponentChoice.toUpperCase() : "Waiting..."}
             </div>
