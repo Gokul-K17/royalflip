@@ -77,6 +77,83 @@ export type Database = {
         }
         Relationships: []
       }
+      multiplayer_bets: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          payout: number | null
+          round_id: string
+          side: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          payout?: number | null
+          round_id: string
+          side: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          payout?: number | null
+          round_id?: string
+          side?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multiplayer_bets_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "multiplayer_rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      multiplayer_rounds: {
+        Row: {
+          completed_at: string | null
+          ends_at: string
+          id: string
+          king_total: number
+          round_number: number
+          started_at: string
+          status: string
+          tail_total: number
+          winner: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          ends_at?: string
+          id?: string
+          king_total?: number
+          round_number?: number
+          started_at?: string
+          status?: string
+          tail_total?: number
+          winner?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          ends_at?: string
+          id?: string
+          king_total?: number
+          round_number?: number
+          started_at?: string
+          status?: string
+          tail_total?: number
+          winner?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           account_status: string | null
@@ -271,7 +348,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      complete_multiplayer_round: {
+        Args: { p_round_id: string }
+        Returns: Json
+      }
+      get_current_round: { Args: never; Returns: string }
+      place_multiplayer_bet: {
+        Args: {
+          p_amount: number
+          p_round_id: string
+          p_side: string
+          p_user_id: string
+          p_username: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

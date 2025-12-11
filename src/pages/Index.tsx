@@ -11,10 +11,11 @@ import WinTicker from "@/components/WinTicker";
 import ChoiceSelection from "@/components/game/ChoiceSelection";
 import RealTimeMatching from "@/components/game/RealTimeMatching";
 import NoMatchFound from "@/components/game/NoMatchFound";
+import MultiplayerMode from "@/components/game/MultiplayerMode";
 import { toast } from "sonner";
 
 export type GameMode = "money" | "choice" | "multiplayer";
-export type GameStage = "mode" | "amount" | "choice" | "matching" | "realtime-matching" | "no-match" | "game" | "result";
+export type GameStage = "mode" | "amount" | "choice" | "matching" | "realtime-matching" | "no-match" | "game" | "result" | "multiplayer";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -110,6 +111,8 @@ const Index = () => {
       setGameStage("amount");
     } else if (mode === "choice") {
       setGameStage("amount");
+    } else if (mode === "multiplayer") {
+      setGameStage("multiplayer");
     }
   };
 
@@ -354,6 +357,15 @@ const Index = () => {
           onRematch={handleRematch}
           onBackToAmount={handleBackToAmount}
           balance={userBalance}
+        />
+      )}
+
+      {gameStage === "multiplayer" && (
+        <MultiplayerMode
+          userId={user.id}
+          username={username}
+          balance={userBalance}
+          onBack={handleBackToMode}
         />
       )}
     </div>
