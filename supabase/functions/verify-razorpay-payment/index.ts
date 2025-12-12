@@ -45,48 +45,80 @@ serve(async (req) => {
     // Get current wallet balance
     const { data: wallet } = await supabase
       .from('wallets')
-      .select('balance')
+      .select('balance, total_deposits')
       .eq('user_id', userId)
       .single();
 
     const currentBalance = parseFloat(wallet?.balance?.toString() || '0');
+    const currentDeposits = parseFloat(wallet?.total_deposits?.toString() || '0');
     const newBalance = currentBalance + amount;
+    const newDeposits = currentDeposits + amount;
 
-    // Update wallet balance
-    const { error: walletError } = await supabase
+    // Update wallet balance with total_deposits
+    await supabase
       .from('wallets')
       .update({ 
         balance: newBalance,
-        total_deposits: supabase.rpc('increment_deposits', { amount_to_add: amount }),
+        total_deposits: newDeposits,
+        last_updated: new Date().toISOString()
       })
       .eq('user_id', userId);
 
-    if (walletError) {
-      // Fallback: just update balance
-      await supabase
-        .from('wallets')
-        .update({ balance: newBalance })
-        .eq('user_id', userId);
-    }
-
-    // Update transaction status
+    // Create transaction record
     await supabase
       .from('transactions')
-      .update({
+      .insert({
+        user_id: userId,
+        type: 'deposit',
+        amount: amount,
+        balance_after: newBalance,
         status: 'completed',
+        payment_method: 'razorpay',
         processed_at: new Date().toISOString(),
         payment_details: {
           order_id: razorpay_order_id,
           payment_id: razorpay_payment_id,
         },
-        balance_after: newBalance,
-      })
-      .match({ 
-        user_id: userId, 
-        status: 'pending',
-      })
-      .order('created_at', { ascending: false })
-      .limit(1);
+      });
+
+    // Check if this is user's first deposit and process referral bonus
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('referred_by')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.referred_by && currentDeposits === 0) {
+      // First deposit - give referral bonuses
+      const referralBonus = 50;
+      
+      // Update referral record
+      await supabase
+        .from('referrals')
+        .update({ reward_claimed: true })
+        .eq('referred_id', userId);
+
+      // Give bonus to referrer
+      const { data: referrerWallet } = await supabase
+        .from('wallets')
+        .select('bonus_balance')
+        .eq('user_id', profile.referred_by)
+        .single();
+      
+      const referrerBonusBalance = parseFloat(referrerWallet?.bonus_balance?.toString() || '0');
+      await supabase
+        .from('wallets')
+        .update({ bonus_balance: referrerBonusBalance + referralBonus })
+        .eq('user_id', profile.referred_by);
+
+      // Give bonus to referred user
+      await supabase
+        .from('wallets')
+        .update({ bonus_balance: referralBonus })
+        .eq('user_id', userId);
+
+      console.log(`Referral bonuses processed: ₹${referralBonus} each to referrer and referred`);
+    }
 
     console.log(`Payment verified and wallet updated. New balance: ${newBalance}`);
 
