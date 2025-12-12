@@ -371,11 +371,18 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
           >
             <div className="inline-flex items-center gap-2 bg-amber-500/20 rounded-full px-6 py-3 border border-amber-500/50">
               <Users className="w-6 h-6 text-amber-500" />
-              <span className="text-xl font-bold text-amber-500">
-                Round Cancelled - Need players on both sides!
+              <span className="text-lg font-bold text-amber-500">
+                Round Cancelled!
               </span>
             </div>
-            <p className="text-muted-foreground mt-2">All bets refunded. New round starting in 5 seconds...</p>
+            <p className="text-muted-foreground mt-2">
+              {kingBets.length === 0 && tailBets.length > 0 
+                ? "King Army needs at least 1 player. All bets refunded."
+                : tailBets.length === 0 && kingBets.length > 0
+                ? "Tail Army needs at least 1 player. All bets refunded."
+                : "Both sides need at least 1 player. All bets refunded."}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">New round starting in 5 seconds...</p>
           </motion.div>
         )}
         {showResult && currentRound?.winner && (
@@ -433,16 +440,16 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
             <span>{kingBets.length} players</span>
           </div>
 
-          {/* King Bets List */}
+          {/* King Bets List - Show only amounts */}
           <div className="mt-3 max-h-32 overflow-y-auto space-y-1">
-            {kingBets.map((bet) => (
+            {kingBets.map((bet, index) => (
               <div
                 key={bet.id}
                 className={`text-xs flex justify-between px-2 py-1 rounded ${
                   bet.user_id === userId ? "bg-primary/20 text-primary" : "bg-black/20 text-muted-foreground"
                 }`}
               >
-                <span className="truncate">{bet.username}</span>
+                <span>{bet.user_id === userId ? "You" : `Player ${index + 1}`}</span>
                 <span>₹{bet.amount}</span>
               </div>
             ))}
@@ -473,16 +480,16 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
             <span>{tailBets.length} players</span>
           </div>
 
-          {/* Tail Bets List */}
+          {/* Tail Bets List - Show only amounts */}
           <div className="mt-3 max-h-32 overflow-y-auto space-y-1">
-            {tailBets.map((bet) => (
+            {tailBets.map((bet, index) => (
               <div
                 key={bet.id}
                 className={`text-xs flex justify-between px-2 py-1 rounded ${
                   bet.user_id === userId ? "bg-secondary/20 text-secondary" : "bg-black/20 text-muted-foreground"
                 }`}
               >
-                <span className="truncate">{bet.username}</span>
+                <span>{bet.user_id === userId ? "You" : `Player ${index + 1}`}</span>
                 <span>₹{bet.amount}</span>
               </div>
             ))}
@@ -523,15 +530,15 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
               )}
             </Button>
           </div>
-          {/* Quick amounts */}
-          <div className="flex gap-2 mt-3 justify-center">
-            {[50, 100, 200, 500].map((amt) => (
+          {/* Quick amounts - works without selecting side first */}
+          <div className="flex gap-2 mt-3 justify-center flex-wrap">
+            {[10, 20, 50, 100, 200, 500].map((amt) => (
               <Button
                 key={amt}
                 variant="outline"
                 size="sm"
                 onClick={() => setBetAmount(amt.toString())}
-                disabled={!selectedSide || amt > balance}
+                disabled={amt > balance}
                 className="text-xs"
               >
                 ₹{amt}
