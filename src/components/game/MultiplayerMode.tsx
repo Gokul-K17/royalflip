@@ -142,12 +142,27 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
         "postgres_changes",
         { event: "*", schema: "public", table: "multiplayer_rounds" },
         (payload) => {
-          if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
+        if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
             const updatedRound = payload.new as Round;
             
             if (updatedRound.status === "flipping") {
               setIsFlipping(true);
               setCurrentRound(updatedRound);
+            } else if (updatedRound.status === "cancelled") {
+              // Round was cancelled - both sides didn't have players
+              setCurrentRound(updatedRound);
+              setShowResult(true);
+              setIsFlipping(false);
+              
+              if (userBet) {
+                toast.info("Round cancelled - not enough players on both sides. Your bet has been refunded!");
+              }
+              
+              // After 5 seconds, fetch new round
+              setTimeout(() => {
+                fetchCurrentRound();
+                setUserBet(null);
+              }, 5000);
             } else if (updatedRound.status === "completed") {
               setCurrentRound(updatedRound);
               setShowResult(true);
@@ -345,8 +360,24 @@ const MultiplayerMode = ({ userId, username, balance, onBack }: MultiplayerModeP
         )}
       </AnimatePresence>
 
-      {/* Winner Announcement */}
+      {/* Winner Announcement / Cancelled */}
       <AnimatePresence>
+        {showResult && currentRound?.status === "cancelled" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-center mb-6"
+          >
+            <div className="inline-flex items-center gap-2 bg-amber-500/20 rounded-full px-6 py-3 border border-amber-500/50">
+              <Users className="w-6 h-6 text-amber-500" />
+              <span className="text-xl font-bold text-amber-500">
+                Round Cancelled - Need players on both sides!
+              </span>
+            </div>
+            <p className="text-muted-foreground mt-2">All bets refunded. New round starting in 5 seconds...</p>
+          </motion.div>
+        )}
         {showResult && currentRound?.winner && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
