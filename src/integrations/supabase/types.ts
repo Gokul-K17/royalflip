@@ -389,6 +389,7 @@ export type Database = {
           currency: string
           id: string
           last_updated: string
+          locked_balance: number
           total_deposits: number
           total_withdrawals: number
           user_id: string
@@ -399,6 +400,7 @@ export type Database = {
           currency?: string
           id?: string
           last_updated?: string
+          locked_balance?: number
           total_deposits?: number
           total_withdrawals?: number
           user_id: string
@@ -409,9 +411,85 @@ export type Database = {
           currency?: string
           id?: string
           last_updated?: string
+          locked_balance?: number
           total_deposits?: number
           total_withdrawals?: number
           user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          failure_reason: string | null
+          id: string
+          method: string
+          payout_identifier: string
+          payout_identifier_encrypted: string | null
+          processed_at: string | null
+          processed_by: string | null
+          razorpay_payout_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          method: string
+          payout_identifier: string
+          payout_identifier_encrypted?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          razorpay_payout_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          method?: string
+          payout_identifier?: string
+          payout_identifier_encrypted?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          razorpay_payout_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawal_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -424,8 +502,42 @@ export type Database = {
         Args: { p_admin_id: string; p_amount: number; p_target_user_id: string }
         Returns: Json
       }
+      admin_mark_withdrawal_failed: {
+        Args: {
+          p_admin_id: string
+          p_failure_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      admin_mark_withdrawal_paid: {
+        Args: {
+          p_admin_id: string
+          p_razorpay_payout_id?: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      admin_process_withdrawal: {
+        Args: {
+          p_action: string
+          p_admin_id: string
+          p_notes?: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       complete_multiplayer_round: {
         Args: { p_round_id: string }
+        Returns: Json
+      }
+      create_withdrawal_request: {
+        Args: {
+          p_amount: number
+          p_method: string
+          p_payout_identifier: string
+          p_user_id: string
+        }
         Returns: Json
       }
       get_current_round: { Args: never; Returns: string }

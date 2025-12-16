@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, LogOut, Wallet, TrendingUp, Trophy, Edit, Plus, ArrowDownToLine, Smartphone, Loader2 } from "lucide-react";
+import { ArrowLeft, LogOut, Wallet, TrendingUp, Trophy, Edit, Plus, ArrowDownToLine, Smartphone, Loader2, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
@@ -12,11 +12,21 @@ interface ProfileData {
   username: string;
   email: string;
   balance: number;
+  locked_balance: number;
   bonus_balance: number;
   total_games: number;
   games_won: number;
   win_rate: number;
   total_winnings: number;
+}
+
+interface WithdrawalRequest {
+  id: string;
+  amount: number;
+  method: string;
+  status: string;
+  created_at: string;
+  failure_reason?: string;
 }
 
 const paymentMethods = [
@@ -39,12 +49,14 @@ const Profile = () => {
   const [amount, setAmount] = useState("");
   const [upiId, setUpiId] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
 
   useEffect(() => {
     fetchProfile();
+    fetchWithdrawalRequests();
     
     // Subscribe to wallet changes for real-time updates
-    const channel = supabase
+    const walletChannel = supabase
       .channel('profile-wallet-changes')
       .on(
         'postgres_changes',
@@ -55,8 +67,22 @@ const Profile = () => {
       )
       .subscribe();
 
+    // Subscribe to withdrawal request changes
+    const withdrawalChannel = supabase
+      .channel('withdrawal-request-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'withdrawal_requests' },
+        () => {
+          fetchWithdrawalRequests();
+          fetchProfile();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(walletChannel);
+      supabase.removeChannel(withdrawalChannel);
     };
   }, []);
 
@@ -75,7 +101,7 @@ const Profile = () => {
 
     const { data: walletData } = await supabase
       .from("wallets")
-      .select("balance, bonus_balance")
+      .select("balance, bonus_balance, locked_balance")
       .eq("user_id", user.id)
       .single();
 
@@ -90,6 +116,7 @@ const Profile = () => {
         username: profileData.username,
         email: profileData.email,
         balance: parseFloat(walletData.balance.toString()),
+        locked_balance: parseFloat((walletData.locked_balance || 0).toString()),
         bonus_balance: parseFloat(walletData.bonus_balance.toString()),
         total_games: statsData.total_games,
         games_won: statsData.games_won,
@@ -100,6 +127,22 @@ const Profile = () => {
       setEditedUsername(profileObj.username);
     }
     setLoading(false);
+  };
+
+  const fetchWithdrawalRequests = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("withdrawal_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (data) {
+      setWithdrawalRequests(data);
+    }
   };
 
   const handleUpdateProfile = async () => {
@@ -216,52 +259,37 @@ const Profile = () => {
       return;
     }
 
-    const withdrawAmount = parseInt(amount);
-    if (withdrawAmount < 100) {
-      toast.error("Minimum withdrawal is ₹100");
-      return;
-    }
-
-    if (!profile || withdrawAmount > profile.balance) {
-      toast.error("Insufficient balance");
-      return;
-    }
-
+    const withdrawAmount = parseFloat(amount);
+    
     setProcessing(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setProcessing(false);
+      return;
+    }
 
     try {
-      // Create withdrawal request transaction
-      const newBalance = profile.balance - withdrawAmount;
+      // Use the RPC function for proper validation and locking
+      const { data, error } = await supabase.rpc('create_withdrawal_request', {
+        p_user_id: user.id,
+        p_amount: withdrawAmount,
+        p_method: selectedPaymentMethod,
+        p_payout_identifier: upiId
+      });
+
+      if (error) throw error;
+
+      const result = data as { success: boolean; error?: string; message?: string };
       
-      await supabase
-        .from('wallets')
-        .update({ 
-          balance: newBalance,
-          last_updated: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-
-      await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          type: 'withdrawal',
-          amount: -withdrawAmount,
-          balance_after: newBalance,
-          status: 'pending',
-          payment_method: selectedPaymentMethod,
-          payment_details: {
-            upi_id: upiId,
-            method: selectedPaymentMethod
-          }
-        });
-
-      toast.success(`Withdrawal request of ₹${withdrawAmount} submitted! It will be processed within 24 hours.`);
-      fetchProfile();
-      setWithdrawModalOpen(false);
-      resetPaymentForm();
+      if (result.success) {
+        toast.success("Withdrawal request submitted! It will be processed within 24 hours.");
+        fetchProfile();
+        fetchWithdrawalRequests();
+        setWithdrawModalOpen(false);
+        resetPaymentForm();
+      } else {
+        toast.error(result.error || "Withdrawal failed");
+      }
     } catch (error: any) {
       toast.error(error.message || "Withdrawal failed");
     } finally {
@@ -273,6 +301,39 @@ const Profile = () => {
     setAmount("");
     setUpiId("");
     setSelectedPaymentMethod(null);
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="w-4 h-4 text-yellow-500" />;
+      case 'approved':
+        return <AlertCircle className="w-4 h-4 text-blue-500" />;
+      case 'paid':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'rejected':
+      case 'failed':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Clock className="w-4 h-4 text-muted-foreground" />;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'approved':
+        return 'Processing';
+      case 'paid':
+        return 'Completed';
+      case 'rejected':
+        return 'Rejected';
+      case 'failed':
+        return 'Failed';
+      default:
+        return status;
+    }
   };
 
   if (loading) {
@@ -352,14 +413,19 @@ const Profile = () => {
               <div className="bg-royal/10 rounded-lg p-4 border border-royal/20">
                 <div className="flex items-center gap-2 mb-2">
                   <Wallet className="w-5 h-5 text-royal" />
-                  <span className="text-sm text-muted-foreground">Balance</span>
+                  <span className="text-sm text-muted-foreground">Available Balance</span>
                 </div>
                 <div className="text-2xl font-bold text-gold">
                   ₹{profile.balance.toFixed(2)}
                 </div>
+                {profile.locked_balance > 0 && (
+                  <p className="text-xs text-yellow-500 mt-1">
+                    ₹{profile.locked_balance.toFixed(2)} locked (pending withdrawal)
+                  </p>
+                )}
                 {profile.bonus_balance > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    +₹{profile.bonus_balance.toFixed(2)} bonus
+                    +₹{profile.bonus_balance.toFixed(2)} bonus (non-withdrawable)
                   </p>
                 )}
               </div>
@@ -431,6 +497,44 @@ const Profile = () => {
               ))}
             </div>
           </div>
+
+          {/* Recent Withdrawal Requests */}
+          {withdrawalRequests.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-6 shadow-xl">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                Recent Withdrawal Requests
+              </h3>
+              <div className="space-y-3">
+                {withdrawalRequests.map((req) => (
+                  <div key={req.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(req.status)}
+                      <div>
+                        <p className="font-medium">₹{req.amount}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(req.created_at).toLocaleDateString()} • {req.method}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        req.status === 'paid' ? 'bg-green-500/20 text-green-500' :
+                        req.status === 'pending' ? 'bg-yellow-500/20 text-yellow-500' :
+                        req.status === 'approved' ? 'bg-blue-500/20 text-blue-500' :
+                        'bg-red-500/20 text-red-500'
+                      }`}>
+                        {getStatusText(req.status)}
+                      </span>
+                      {req.failure_reason && (
+                        <p className="text-xs text-red-500 mt-1">{req.failure_reason}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -537,6 +641,9 @@ const Profile = () => {
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <p className="text-sm text-muted-foreground">Available Balance</p>
               <p className="text-2xl font-bold text-gold">₹{profile?.balance.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Bonus balance (₹{profile?.bonus_balance.toFixed(2)}) is not withdrawable
+              </p>
             </div>
 
             {/* Payment Method Selection */}
@@ -579,9 +686,31 @@ const Profile = () => {
               />
             </div>
 
+            {/* Quick amounts for withdrawal */}
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">Select Amount</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[100, 500, 1000, 2000, 5000].map((amt) => (
+                  <Button
+                    key={amt}
+                    variant="outline"
+                    disabled={amt > (profile?.balance || 0)}
+                    className={`h-10 font-semibold ${
+                      amount === amt.toString() 
+                        ? "border-primary bg-primary/10 text-primary" 
+                        : "border-border hover:border-primary/50"
+                    }`}
+                    onClick={() => setAmount(amt.toString())}
+                  >
+                    ₹{amt}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             {/* Amount Input */}
             <div>
-              <p className="text-sm text-muted-foreground mb-2">Amount to Withdraw (min ₹100)</p>
+              <p className="text-sm text-muted-foreground mb-2">Or Enter Amount (min ₹100)</p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                 <Input
@@ -609,7 +738,7 @@ const Profile = () => {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Withdrawals are processed within 24 hours to your UPI ID
+              Withdrawals are processed within 24 hours. Min: ₹100
             </p>
           </div>
         </DialogContent>
