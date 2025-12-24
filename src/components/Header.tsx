@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { User, Trophy, Wallet, Users, Plus, Crown } from "lucide-react";
+import { User, Trophy, Wallet, Users, Plus, Crown, Shield } from "lucide-react";
 import DailyBonus from "./DailyBonus";
 import AddFundsModal from "./AddFundsModal";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ const Header = () => {
   const [user, setUser] = useState<any>(null);
   const [balance, setBalance] = useState(0);
   const [showAddFunds, setShowAddFunds] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -19,6 +20,9 @@ const Header = () => {
         setUser(session?.user ?? null);
         if (session?.user) {
           fetchBalance(session.user.id);
+          checkAdminRole(session.user.id);
+        } else {
+          setIsAdmin(false);
         }
       }
     );
@@ -27,11 +31,20 @@ const Header = () => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchBalance(session.user.id);
+        checkAdminRole(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkAdminRole = async (userId: string) => {
+    const { data } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "admin"
+    });
+    setIsAdmin(!!data);
+  };
 
   const fetchBalance = async (userId: string) => {
     const { data } = await supabase
@@ -122,6 +135,17 @@ const Header = () => {
                 >
                   <Users className="w-5 h-5 text-royal" />
                 </Button>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => navigate("/a9x7k2m4")}
+                    className="hover:bg-red-500/10"
+                    title="Admin Panel"
+                  >
+                    <Shield className="w-5 h-5 text-red-500" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
