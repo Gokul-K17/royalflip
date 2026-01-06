@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import AmountSelection from "@/components/game/AmountSelection";
 import PlayerMatching from "@/components/game/PlayerMatching";
 import GameScreen from "@/components/game/GameScreen";
+import SharedGameScreen from "@/components/game/SharedGameScreen";
 import ResultScreen from "@/components/game/ResultScreen";
 import WinTicker from "@/components/WinTicker";
 import ChoiceSelection from "@/components/game/ChoiceSelection";
@@ -26,7 +27,7 @@ const Index = () => {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [playerChoice, setPlayerChoice] = useState<"heads" | "tails" | null>(null);
   const [opponentInfo, setOpponentInfo] = useState<{ id: string; name: string } | null>(null);
-  const [queueId, setQueueId] = useState<string | null>(null);
+  const [gameSessionId, setGameSessionId] = useState<string | null>(null);
   const [userBalance, setUserBalance] = useState(100);
   const [gameResult, setGameResult] = useState<"win" | "loss" | null>(null);
 
@@ -136,9 +137,9 @@ const Index = () => {
     setGameStage("game");
   };
 
-  const handleRealTimeMatchFound = (opponentId: string, opponentName: string, matchQueueId: string) => {
+  const handleRealTimeMatchFound = (opponentId: string, opponentName: string, sessionId: string) => {
     setOpponentInfo({ id: opponentId, name: opponentName });
-    setQueueId(matchQueueId);
+    setGameSessionId(sessionId);
     setGameStage("game");
   };
 
@@ -250,7 +251,7 @@ const Index = () => {
   const handleRematch = () => {
     setGameResult(null);
     setOpponentInfo(null);
-    setQueueId(null);
+    setGameSessionId(null);
     if (selectedMode === "choice") {
       setPlayerChoice(null);
       setGameStage("choice");
@@ -264,7 +265,7 @@ const Index = () => {
     setSelectedAmount(null);
     setPlayerChoice(null);
     setOpponentInfo(null);
-    setQueueId(null);
+    setGameSessionId(null);
     setGameStage("amount");
   };
 
@@ -274,7 +275,7 @@ const Index = () => {
     setSelectedMode(null);
     setPlayerChoice(null);
     setOpponentInfo(null);
-    setQueueId(null);
+    setGameSessionId(null);
     setGameStage("mode");
   };
 
@@ -340,7 +341,19 @@ const Index = () => {
         />
       )}
       
-      {gameStage === "game" && selectedAmount && (
+      {gameStage === "game" && selectedAmount && selectedMode === "choice" && playerChoice && opponentInfo && gameSessionId && (
+        <SharedGameScreen
+          gameSessionId={gameSessionId}
+          userId={user.id}
+          betAmount={selectedAmount}
+          balance={userBalance}
+          playerChoice={playerChoice}
+          opponentInfo={opponentInfo}
+          onGameComplete={handleGameComplete}
+        />
+      )}
+
+      {gameStage === "game" && selectedAmount && selectedMode !== "choice" && (
         <GameScreen
           betAmount={selectedAmount}
           balance={userBalance}

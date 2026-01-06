@@ -89,6 +89,57 @@ export type Database = {
         }
         Relationships: []
       }
+      game_sessions: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          flip_result: string | null
+          flipped_at: string | null
+          id: string
+          player1_choice: string
+          player1_id: string
+          player1_username: string
+          player2_choice: string
+          player2_id: string
+          player2_username: string
+          status: string
+          winner_id: string | null
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          flip_result?: string | null
+          flipped_at?: string | null
+          id?: string
+          player1_choice: string
+          player1_id: string
+          player1_username: string
+          player2_choice: string
+          player2_id: string
+          player2_username: string
+          status?: string
+          winner_id?: string | null
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          flip_result?: string | null
+          flipped_at?: string | null
+          id?: string
+          player1_choice?: string
+          player1_id?: string
+          player1_username?: string
+          player2_choice?: string
+          player2_id?: string
+          player2_username?: string
+          status?: string
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
       matchmaking_queue: {
         Row: {
           amount: number

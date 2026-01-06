@@ -12,7 +12,7 @@ interface RealTimeMatchingProps {
   balance: number;
   userId: string;
   username: string;
-  onMatchFound: (opponentId: string, opponentName: string, queueId: string) => void;
+  onMatchFound: (opponentId: string, opponentName: string, gameSessionId: string) => void;
   onNoMatch: () => void;
   onCancel: () => void;
 }
@@ -25,6 +25,7 @@ interface QueueEntry {
   amount: number;
   status: string;
   matched_with: string | null;
+  game_session_id: string | null;
 }
 
 const RealTimeMatching = ({ 
@@ -62,16 +63,35 @@ const RealTimeMatching = ({
       if (searchError) throw searchError;
 
       if (existingOpponents && existingOpponents.length > 0) {
-        // Found an opponent! Match with them
+        // Found an opponent! Create a shared game session
         const opponent = existingOpponents[0];
         
-        // Update opponent's status to matched
+        // Create a game session for both players
+        const { data: gameSession, error: sessionError } = await supabase
+          .from("game_sessions")
+          .insert({
+            player1_id: opponent.user_id,
+            player1_username: opponent.username,
+            player1_choice: opponent.choice,
+            player2_id: userId,
+            player2_username: username,
+            player2_choice: playerChoice,
+            amount: amount,
+            status: "waiting"
+          })
+          .select()
+          .single();
+
+        if (sessionError) throw sessionError;
+
+        // Update opponent's queue entry to matched with game session id
         const { error: updateError } = await supabase
           .from("matchmaking_queue")
           .update({ 
             status: "matched", 
             matched_with: userId,
-            matched_at: new Date().toISOString()
+            matched_at: new Date().toISOString(),
+            game_session_id: gameSession.id
           })
           .eq("id", opponent.id);
 
@@ -87,7 +107,8 @@ const RealTimeMatching = ({
             amount: amount,
             status: "matched",
             matched_with: opponent.user_id,
-            matched_at: new Date().toISOString()
+            matched_at: new Date().toISOString(),
+            game_session_id: gameSession.id
           })
           .select()
           .single();
@@ -100,7 +121,7 @@ const RealTimeMatching = ({
 
         // Trigger callback after animation
         setTimeout(() => {
-          onMatchFound(opponent.user_id, opponent.username, myEntry.id);
+          onMatchFound(opponent.user_id, opponent.username, gameSession.id);
         }, 2000);
 
         return;
@@ -168,24 +189,25 @@ const RealTimeMatching = ({
           table: "matchmaking_queue",
           filter: `id=eq.${queueId}`
         },
-        (payload) => {
+        async (payload) => {
           const updated = payload.new as QueueEntry;
-          if (updated.status === "matched" && updated.matched_with) {
+          if (updated.status === "matched" && updated.matched_with && updated.game_session_id) {
             // Someone matched with us, find their info
-            supabase
+            const { data } = await supabase
               .from("matchmaking_queue")
               .select("username, user_id")
               .eq("user_id", updated.matched_with)
-              .single()
-              .then(({ data }) => {
-                if (data) {
-                  setMatchedOpponent({ id: data.user_id, name: data.username });
-                  setIsSearching(false);
-                  setTimeout(() => {
-                    onMatchFound(data.user_id, data.username, queueId);
-                  }, 2000);
-                }
-              });
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .single();
+
+            if (data) {
+              setMatchedOpponent({ id: data.user_id, name: data.username });
+              setIsSearching(false);
+              setTimeout(() => {
+                onMatchFound(data.user_id, data.username, updated.game_session_id!);
+              }, 2000);
+            }
           }
         }
       )
@@ -216,19 +238,19 @@ const RealTimeMatching = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col p-6 animate-slide-up">
+    <div className="min-h-screen flex flex-col p-4 md:p-6 animate-slide-up">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
         <Button 
           variant="ghost" 
           onClick={handleCancel}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground p-2"
         >
           <X className="w-5 h-5 mr-1" /> Cancel
         </Button>
-        <div className="flex items-center gap-3 bg-card px-4 py-2.5 rounded-full border border-gold/20">
-          <Wallet className="w-5 h-5 text-gold" />
-          <span className="text-xl font-bold text-foreground">₹ {balance.toLocaleString()}</span>
+        <div className="flex items-center gap-2 md:gap-3 bg-card px-3 md:px-4 py-2 md:py-2.5 rounded-full border border-gold/20">
+          <Wallet className="w-4 h-4 md:w-5 md:h-5 text-gold" />
+          <span className="text-lg md:text-xl font-bold text-foreground">₹ {balance.toLocaleString()}</span>
         </div>
       </div>
 
@@ -236,15 +258,15 @@ const RealTimeMatching = ({
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
+        className="text-center mb-6 md:mb-8"
       >
-        <div className="inline-block px-6 py-2 bg-gold/10 border border-gold/30 rounded-full mb-4">
-          <span className="text-gold font-semibold uppercase">Your Choice: {playerChoice}</span>
+        <div className="inline-block px-4 md:px-6 py-2 bg-gold/10 border border-gold/30 rounded-full mb-4">
+          <span className="text-gold font-semibold uppercase text-sm md:text-base">Your Choice: {playerChoice}</span>
         </div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">
+        <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
           {matchedOpponent ? "Match Found!" : "Searching for Opponent..."}
         </h2>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground text-sm md:text-base">
           {matchedOpponent 
             ? "Get ready to flip!" 
             : `Looking for someone who chose ${oppositeChoice.toUpperCase()}`
@@ -257,13 +279,13 @@ const RealTimeMatching = ({
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex justify-center mb-8"
+          className="flex justify-center mb-6 md:mb-8"
         >
-          <div className={`flex items-center gap-2 px-6 py-3 rounded-full ${
+          <div className={`flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full ${
             timeLeft <= 10 ? "bg-destructive/20 border border-destructive/40" : "bg-card border border-border"
           }`}>
-            <Clock className={`w-5 h-5 ${timeLeft <= 10 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
-            <span className={`text-2xl font-bold ${timeLeft <= 10 ? "text-destructive" : "text-foreground"}`}>
+            <Clock className={`w-4 h-4 md:w-5 md:h-5 ${timeLeft <= 10 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
+            <span className={`text-xl md:text-2xl font-bold ${timeLeft <= 10 ? "text-destructive" : "text-foreground"}`}>
               {timeLeft}s
             </span>
           </div>
@@ -271,35 +293,35 @@ const RealTimeMatching = ({
       )}
 
       {/* Player Cards */}
-      <div className="flex-1 flex items-center justify-center gap-4 md:gap-8 max-w-2xl mx-auto w-full">
+      <div className="flex-1 flex items-center justify-center gap-3 md:gap-8 max-w-2xl mx-auto w-full px-2">
         {/* You */}
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1"
+          className="flex-1 max-w-[160px] md:max-w-none"
         >
-          <Card className="p-6 md:p-8 bg-gradient-to-br from-card to-card/80 border-2 border-royal/50 shadow-lg">
+          <Card className="p-4 md:p-8 bg-gradient-to-br from-card to-card/80 border-2 border-royal/50 shadow-lg">
             <div className="text-center">
-              <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-royal to-royal-dark flex items-center justify-center border-4 border-royal/30">
-                <User className="w-10 h-10 md:w-12 md:h-12 text-foreground" />
+              <div className="w-14 h-14 md:w-24 md:h-24 mx-auto mb-3 md:mb-4 rounded-full bg-gradient-to-br from-royal to-royal-dark flex items-center justify-center border-4 border-royal/30">
+                <User className="w-7 h-7 md:w-12 md:h-12 text-foreground" />
               </div>
-              <h3 className="text-lg md:text-xl font-bold text-foreground mb-1">{username}</h3>
-              <div className="text-sm text-muted-foreground mb-2">You</div>
-              <div className="inline-block px-3 py-1 bg-royal/20 border border-royal/40 rounded-full">
-                <span className="text-royal font-semibold text-sm uppercase">{playerChoice}</span>
+              <h3 className="text-sm md:text-xl font-bold text-foreground mb-1 truncate">{username}</h3>
+              <div className="text-xs md:text-sm text-muted-foreground mb-2">You</div>
+              <div className="inline-block px-2 md:px-3 py-1 bg-royal/20 border border-royal/40 rounded-full">
+                <span className="text-royal font-semibold text-xs md:text-sm uppercase">{playerChoice}</span>
               </div>
-              <div className="text-gold font-semibold mt-2">₹{amount}</div>
+              <div className="text-gold font-semibold mt-2 text-sm md:text-base">₹{amount}</div>
             </div>
           </Card>
         </motion.div>
 
         {/* Connection Icon */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <motion.div
             animate={isSearching && !matchedOpponent ? { rotate: 360 } : {}}
             transition={{ duration: 2, repeat: isSearching && !matchedOpponent ? Infinity : 0, ease: "linear" }}
           >
-            <Link2 className={`w-10 h-10 md:w-12 md:h-12 ${
+            <Link2 className={`w-8 h-8 md:w-12 md:h-12 ${
               matchedOpponent ? "text-gold" : "text-muted-foreground"
             }`} />
           </motion.div>
@@ -307,7 +329,7 @@ const RealTimeMatching = ({
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full"
+              className="absolute -top-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-success rounded-full"
             />
           )}
         </div>
@@ -316,15 +338,15 @@ const RealTimeMatching = ({
         <motion.div
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex-1"
+          className="flex-1 max-w-[160px] md:max-w-none"
         >
-          <Card className={`p-6 md:p-8 bg-gradient-to-br transition-all duration-500 ${
+          <Card className={`p-4 md:p-8 bg-gradient-to-br transition-all duration-500 ${
             matchedOpponent 
               ? "from-gold/20 to-gold/5 border-2 border-gold/50 shadow-[0_0_20px_rgba(212,175,55,0.3)]" 
               : "from-card to-card/80 border-2 border-border"
           }`}>
             <div className="text-center">
-              <div className={`w-20 h-20 md:w-24 md:h-24 mx-auto mb-4 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
+              <div className={`w-14 h-14 md:w-24 md:h-24 mx-auto mb-3 md:mb-4 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
                 matchedOpponent 
                   ? "bg-gradient-to-br from-gold to-gold-light border-gold/30" 
                   : "bg-muted border-border"
@@ -336,30 +358,30 @@ const RealTimeMatching = ({
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 300 }}
                     >
-                      <User className="w-10 h-10 md:w-12 md:h-12 text-navy-light" />
+                      <User className="w-7 h-7 md:w-12 md:h-12 text-navy-light" />
                     </motion.div>
                   ) : (
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-8 h-8 border-4 border-muted-foreground border-t-transparent rounded-full"
+                      className="w-6 h-6 md:w-8 md:h-8 border-4 border-muted-foreground border-t-transparent rounded-full"
                     />
                   )}
                 </AnimatePresence>
               </div>
-              <h3 className="text-lg md:text-xl font-bold text-foreground mb-1">
+              <h3 className="text-sm md:text-xl font-bold text-foreground mb-1 truncate">
                 {matchedOpponent ? matchedOpponent.name : "Searching..."}
               </h3>
-              <div className="text-sm text-muted-foreground mb-2">Opponent</div>
+              <div className="text-xs md:text-sm text-muted-foreground mb-2">Opponent</div>
               {matchedOpponent && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
-                  <div className="inline-block px-3 py-1 bg-gold/20 border border-gold/40 rounded-full">
-                    <span className="text-gold font-semibold text-sm uppercase">{oppositeChoice}</span>
+                  <div className="inline-block px-2 md:px-3 py-1 bg-gold/20 border border-gold/40 rounded-full">
+                    <span className="text-gold font-semibold text-xs md:text-sm uppercase">{oppositeChoice}</span>
                   </div>
-                  <div className="text-gold font-semibold mt-2">₹{amount}</div>
+                  <div className="text-gold font-semibold mt-2 text-sm md:text-base">₹{amount}</div>
                 </motion.div>
               )}
             </div>
@@ -372,10 +394,10 @@ const RealTimeMatching = ({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="text-center mt-8 p-4 bg-gradient-to-r from-gold/10 via-gold/20 to-gold/10 border border-gold/30 rounded-xl"
+        className="text-center mt-6 md:mt-8 p-3 md:p-4 bg-gradient-to-r from-gold/10 via-gold/20 to-gold/10 border border-gold/30 rounded-xl"
       >
-        <span className="text-muted-foreground">Prize Pool: </span>
-        <span className="text-2xl font-bold text-gold">₹{amount * 2}</span>
+        <span className="text-muted-foreground text-sm md:text-base">Prize Pool: </span>
+        <span className="text-xl md:text-2xl font-bold text-gold">₹{amount * 2}</span>
       </motion.div>
 
       {/* Status */}
@@ -384,7 +406,7 @@ const RealTimeMatching = ({
         animate={{ opacity: 1 }}
         className="text-center mt-4"
       >
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs md:text-sm text-muted-foreground">
           {isSearching && !matchedOpponent 
             ? `Waiting for a player who chose ${oppositeChoice.toUpperCase()}...` 
             : "Starting game..."
