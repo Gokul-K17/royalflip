@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Wallet, User, Link2, Clock, X } from "lucide-react";
+import { Wallet, User, Link2, Clock, X, UserX, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,6 +40,7 @@ const RealTimeMatching = ({
 }: RealTimeMatchingProps) => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [isSearching, setIsSearching] = useState(true);
+  const [showNoMatchMessage, setShowNoMatchMessage] = useState(false);
   const [matchedOpponent, setMatchedOpponent] = useState<{ id: string; name: string } | null>(null);
   const [queueId, setQueueId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -168,16 +169,13 @@ const RealTimeMatching = ({
     joinQueue();
 
     return () => {
-      // Cleanup on unmount if still waiting
-      if (queueId && isSearching) {
-        cleanupQueue("cancelled");
-      }
+      // Cleanup on unmount only if user cancels (not if timeout)
     };
   }, []);
 
-  // Listen for matches via realtime
+  // Listen for matches via realtime - stays active even after timeout
   useEffect(() => {
-    if (!queueId || !isSearching) return;
+    if (!queueId) return;
 
     const channel = supabase
       .channel(`matchmaking-${queueId}`)
@@ -204,6 +202,7 @@ const RealTimeMatching = ({
             if (data) {
               setMatchedOpponent({ id: data.user_id, name: data.username });
               setIsSearching(false);
+              setShowNoMatchMessage(false);
               setTimeout(() => {
                 onMatchFound(data.user_id, data.username, updated.game_session_id!);
               }, 2000);
@@ -216,9 +215,9 @@ const RealTimeMatching = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queueId, isSearching, onMatchFound]);
+  }, [queueId, onMatchFound]);
 
-  // Countdown timer
+  // Countdown timer - shows "no match" message but keeps listening
   useEffect(() => {
     if (!isSearching || matchedOpponent) return;
 
@@ -226,15 +225,20 @@ const RealTimeMatching = ({
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
     } else {
-      // Time's up, no match found
-      cleanupQueue("expired");
-      onNoMatch();
+      // Time's up, but DON'T cleanup - keep queue entry active for late joins
+      // Just show the "no match found" message while still listening
+      setShowNoMatchMessage(true);
     }
-  }, [timeLeft, isSearching, matchedOpponent, cleanupQueue, onNoMatch]);
+  }, [timeLeft, isSearching, matchedOpponent]);
 
   const handleCancel = async () => {
     await cleanupQueue("cancelled");
     onCancel();
+  };
+
+  const handleChangeChoice = async () => {
+    await cleanupQueue("cancelled");
+    onNoMatch();
   };
 
   return (
@@ -264,31 +268,52 @@ const RealTimeMatching = ({
           <span className="text-gold font-semibold uppercase text-sm md:text-base">Your Choice: {playerChoice}</span>
         </div>
         <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
-          {matchedOpponent ? "Match Found!" : "Searching for Opponent..."}
+          {matchedOpponent 
+            ? "Match Found!" 
+            : showNoMatchMessage 
+              ? "No Player Found Yet" 
+              : "Searching for Opponent..."
+          }
         </h2>
         <p className="text-muted-foreground text-sm md:text-base">
           {matchedOpponent 
             ? "Get ready to flip!" 
-            : `Looking for someone who chose ${oppositeChoice.toUpperCase()}`
+            : showNoMatchMessage
+              ? `Still waiting for someone who chose ${oppositeChoice.toUpperCase()}...`
+              : `Looking for someone who chose ${oppositeChoice.toUpperCase()}`
           }
         </p>
       </motion.div>
 
-      {/* Timer */}
+      {/* Timer or Waiting Message */}
       {isSearching && !matchedOpponent && (
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           className="flex justify-center mb-6 md:mb-8"
         >
-          <div className={`flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full ${
-            timeLeft <= 10 ? "bg-destructive/20 border border-destructive/40" : "bg-card border border-border"
-          }`}>
-            <Clock className={`w-4 h-4 md:w-5 md:h-5 ${timeLeft <= 10 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
-            <span className={`text-xl md:text-2xl font-bold ${timeLeft <= 10 ? "text-destructive" : "text-foreground"}`}>
-              {timeLeft}s
-            </span>
-          </div>
+          {showNoMatchMessage ? (
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full bg-amber-500/20 border border-amber-500/40">
+                <UserX className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
+                <span className="text-amber-500 font-semibold text-sm md:text-base">Waiting for late join...</span>
+              </div>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full"
+              />
+            </div>
+          ) : (
+            <div className={`flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full ${
+              timeLeft <= 10 ? "bg-destructive/20 border border-destructive/40" : "bg-card border border-border"
+            }`}>
+              <Clock className={`w-4 h-4 md:w-5 md:h-5 ${timeLeft <= 10 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
+              <span className={`text-xl md:text-2xl font-bold ${timeLeft <= 10 ? "text-destructive" : "text-foreground"}`}>
+                {timeLeft}s
+              </span>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -349,7 +374,9 @@ const RealTimeMatching = ({
               <div className={`w-14 h-14 md:w-24 md:h-24 mx-auto mb-3 md:mb-4 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
                 matchedOpponent 
                   ? "bg-gradient-to-br from-gold to-gold-light border-gold/30" 
-                  : "bg-muted border-border"
+                  : showNoMatchMessage
+                    ? "bg-amber-500/20 border-amber-500/30"
+                    : "bg-muted border-border"
               }`}>
                 <AnimatePresence mode="wait">
                   {matchedOpponent ? (
@@ -359,6 +386,13 @@ const RealTimeMatching = ({
                       transition={{ type: "spring", stiffness: 300 }}
                     >
                       <User className="w-7 h-7 md:w-12 md:h-12 text-navy-light" />
+                    </motion.div>
+                  ) : showNoMatchMessage ? (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                    >
+                      <UserX className="w-7 h-7 md:w-12 md:h-12 text-amber-500" />
                     </motion.div>
                   ) : (
                     <motion.div
@@ -370,7 +404,7 @@ const RealTimeMatching = ({
                 </AnimatePresence>
               </div>
               <h3 className="text-sm md:text-xl font-bold text-foreground mb-1 truncate">
-                {matchedOpponent ? matchedOpponent.name : "Searching..."}
+                {matchedOpponent ? matchedOpponent.name : showNoMatchMessage ? "Waiting..." : "Searching..."}
               </h3>
               <div className="text-xs md:text-sm text-muted-foreground mb-2">Opponent</div>
               {matchedOpponent && (
@@ -400,18 +434,31 @@ const RealTimeMatching = ({
         <span className="text-xl md:text-2xl font-bold text-gold">₹{amount * 2}</span>
       </motion.div>
 
-      {/* Status */}
+      {/* Status and Change Choice Button */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="text-center mt-4"
+        className="text-center mt-4 space-y-3"
       >
         <p className="text-xs md:text-sm text-muted-foreground">
           {isSearching && !matchedOpponent 
-            ? `Waiting for a player who chose ${oppositeChoice.toUpperCase()}...` 
+            ? showNoMatchMessage
+              ? "You can still be matched when another player joins"
+              : `Waiting for a player who chose ${oppositeChoice.toUpperCase()}...` 
             : "Starting game..."
           }
         </p>
+        
+        {showNoMatchMessage && !matchedOpponent && (
+          <Button
+            onClick={handleChangeChoice}
+            variant="outline"
+            className="border-2 border-border hover:bg-card"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Change Choice
+          </Button>
+        )}
       </motion.div>
     </div>
   );

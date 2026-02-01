@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Wallet, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CoinFlip from "./CoinFlip";
@@ -42,6 +42,8 @@ const SharedGameScreen = ({
   const [result, setResult] = useState<"heads" | "tails" | null>(null);
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [hasFlipped, setHasFlipped] = useState(false);
+  const [waitingForOther, setWaitingForOther] = useState(false);
+  const completedRef = useRef(false);
 
   const winAmount = betAmount * 2;
   const opponentChoice = playerChoice === "heads" ? "tails" : "heads";
@@ -58,9 +60,17 @@ const SharedGameScreen = ({
       if (data && !error) {
         setGameSession(data as GameSession);
         
+        // If game is already flipping or completed, sync UI
+        if (data.status === "flipping") {
+          setIsFlipping(true);
+          setHasFlipped(true);
+        }
+        
         // If game is already completed, show result
-        if (data.status === "completed" && data.flip_result) {
+        if (data.status === "completed" && data.flip_result && !completedRef.current) {
+          completedRef.current = true;
           setResult(data.flip_result as "heads" | "tails");
+          setIsFlipping(true);
           setHasFlipped(true);
           
           const didWin = data.winner_id === userId;
@@ -92,10 +102,12 @@ const SharedGameScreen = ({
 
           if (updated.status === "flipping" && !isFlipping) {
             setIsFlipping(true);
+            setHasFlipped(true);
           }
 
-          if (updated.status === "completed" && updated.flip_result) {
-            // Show the flip animation with the result
+          if (updated.status === "completed" && updated.flip_result && !completedRef.current) {
+            completedRef.current = true;
+            // Show the flip animation with the result from the database
             setResult(updated.flip_result as "heads" | "tails");
             
             const didWin = updated.winner_id === userId;
@@ -115,14 +127,54 @@ const SharedGameScreen = ({
   const handleFlip = async () => {
     if (hasFlipped || isFlipping) return;
     
-    setIsFlipping(true);
     setHasFlipped(true);
+    setWaitingForOther(true);
 
-    // Determine the flip result (only the flipper determines it)
+    // First, check if someone else already flipped
+    const { data: currentSession } = await supabase
+      .from("game_sessions")
+      .select("*")
+      .eq("id", gameSessionId)
+      .single();
+
+    if (currentSession && (currentSession.status === "flipping" || currentSession.status === "completed")) {
+      // Someone else already started the flip, just wait for result
+      setIsFlipping(true);
+      setWaitingForOther(false);
+      if (currentSession.flip_result && !completedRef.current) {
+        completedRef.current = true;
+        setResult(currentSession.flip_result as "heads" | "tails");
+        const didWin = currentSession.winner_id === userId;
+        setTimeout(() => {
+          onGameComplete(didWin ? "win" : "loss", didWin ? winAmount : 0);
+        }, 3500);
+      }
+      return;
+    }
+
+    setIsFlipping(true);
+    setWaitingForOther(false);
+
+    // Generate the result ONCE server-side - this is the canonical result
     const flipResult: "heads" | "tails" = Math.random() > 0.5 ? "heads" : "tails";
     
     // Determine winner based on result
-    const winnerId = flipResult === playerChoice ? userId : opponentInfo.id;
+    // Player1 has player1_choice, Player2 has player2_choice
+    // Find out which player we are and determine winner
+    let winnerId: string;
+    if (currentSession) {
+      const player1Choice = currentSession.player1_choice;
+      const player2Choice = currentSession.player2_choice;
+      
+      if (flipResult === player1Choice) {
+        winnerId = currentSession.player1_id;
+      } else {
+        winnerId = currentSession.player2_id;
+      }
+    } else {
+      // Fallback - shouldn't happen but handle gracefully
+      winnerId = flipResult === playerChoice ? userId : opponentInfo.id;
+    }
 
     // Update game session with flipping status first
     await supabase
@@ -131,13 +183,15 @@ const SharedGameScreen = ({
         status: "flipping",
         flipped_at: new Date().toISOString()
       })
-      .eq("id", gameSessionId);
+      .eq("id", gameSessionId)
+      .eq("status", "waiting"); // Only update if still waiting (prevent race condition)
 
     // After 2 seconds, update with the result
     setTimeout(async () => {
       setResult(flipResult);
       
-      await supabase
+      // Use conditional update to prevent race conditions
+      const { data: updateResult } = await supabase
         .from("game_sessions")
         .update({ 
           status: "completed",
@@ -145,12 +199,18 @@ const SharedGameScreen = ({
           winner_id: winnerId,
           completed_at: new Date().toISOString()
         })
-        .eq("id", gameSessionId);
+        .eq("id", gameSessionId)
+        .eq("status", "flipping") // Only update if we're the one who set flipping
+        .select();
 
-      const didWin = winnerId === userId;
-      setTimeout(() => {
-        onGameComplete(didWin ? "win" : "loss", didWin ? winAmount : 0);
-      }, 1500);
+      // If update succeeded, we're the one who set the result
+      if (updateResult && updateResult.length > 0 && !completedRef.current) {
+        completedRef.current = true;
+        const didWin = winnerId === userId;
+        setTimeout(() => {
+          onGameComplete(didWin ? "win" : "loss", didWin ? winAmount : 0);
+        }, 1500);
+      }
     }, 2000);
   };
 
@@ -240,6 +300,16 @@ const SharedGameScreen = ({
                 />
               </Button>
             </motion.div>
+          </motion.div>
+        )}
+        
+        {waitingForOther && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-4"
+          >
+            <span className="text-lg md:text-xl font-semibold text-gold animate-pulse">Starting flip...</span>
           </motion.div>
         )}
         
