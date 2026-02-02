@@ -43,7 +43,8 @@ const SharedGameScreen = ({
   const [result, setResult] = useState<"heads" | "tails" | null>(null);
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [hasFlipped, setHasFlipped] = useState(false);
-  const [waitingForOther, setWaitingForOther] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [countdownStarted, setCountdownStarted] = useState(false);
   const completedRef = useRef(false);
 
   const winAmount = betAmount * 2;
@@ -125,11 +126,36 @@ const SharedGameScreen = ({
     };
   }, [gameSessionId, userId, onGameComplete, winAmount, isFlipping]);
 
+  // Start countdown when component mounts
+  useEffect(() => {
+    if (countdownStarted || hasFlipped || isFlipping) return;
+    
+    setCountdownStarted(true);
+    
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [countdownStarted, hasFlipped, isFlipping]);
+
+  // Trigger flip when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0 && !hasFlipped && !isFlipping) {
+      handleFlip();
+    }
+  }, [countdown, hasFlipped, isFlipping]);
+
   const handleFlip = async () => {
     if (hasFlipped || isFlipping) return;
 
     setHasFlipped(true);
-    setWaitingForOther(true);
 
     // If someone else already flipped, sync from DB and wait for realtime
     const { data: currentSession } = await supabase
@@ -143,7 +169,6 @@ const SharedGameScreen = ({
       (currentSession.status === "flipping" || currentSession.status === "completed")
     ) {
       setIsFlipping(true);
-      setWaitingForOther(false);
       if (currentSession.flip_result && !completedRef.current) {
         completedRef.current = true;
         setResult(currentSession.flip_result as "heads" | "tails");
@@ -159,8 +184,6 @@ const SharedGameScreen = ({
     const { error } = await supabase.functions.invoke("execute-coin-flip", {
       body: { gameSessionId },
     });
-
-    setWaitingForOther(false);
 
     if (error) {
       const msg = (error as { message?: string })?.message ?? String(error);
@@ -241,46 +264,35 @@ const SharedGameScreen = ({
         </motion.div>
       )}
 
-      {/* Flip Button */}
+      {/* Countdown / Status */}
       <AnimatePresence mode="wait">
-        {!isFlipping && !hasFlipped && (
+        {!isFlipping && !hasFlipped && countdown > 0 && (
           <motion.div
+            key="countdown"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
+            className="flex flex-col items-center justify-center py-6"
           >
             <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              key={countdown}
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-gold via-gold-light to-gold flex items-center justify-center shadow-[var(--shadow-glow)]"
             >
-              <Button
-                onClick={handleFlip}
-                className="w-full h-16 md:h-20 text-xl md:text-2xl font-bold bg-gradient-to-r from-gold via-gold-light to-gold hover:from-gold-light hover:via-gold hover:to-gold-light text-navy-light shadow-[var(--shadow-glow)] transition-all duration-300 relative overflow-hidden"
-              >
-                <Zap className="w-5 h-5 md:w-6 md:h-6 mr-2" />
-                FLIP COIN
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                  animate={{ x: ["-100%", "100%"] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              </Button>
+              <span className="text-5xl md:text-6xl font-bold text-navy-light">{countdown}</span>
             </motion.div>
-          </motion.div>
-        )}
-        
-        {waitingForOther && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-4"
-          >
-            <span className="text-lg md:text-xl font-semibold text-gold animate-pulse">Starting flip...</span>
+            <span className="mt-4 text-lg md:text-xl font-semibold text-muted-foreground">
+              Flipping in...
+            </span>
           </motion.div>
         )}
         
         {isFlipping && !result && (
           <motion.div
+            key="flipping"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center py-4"
