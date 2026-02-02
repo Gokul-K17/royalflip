@@ -120,10 +120,7 @@ const RealTimeMatching = ({
         setMatchedOpponent({ id: opponent.user_id, name: opponent.username });
         setIsSearching(false);
 
-        // Trigger callback after animation
-        setTimeout(() => {
-          onMatchFound(opponent.user_id, opponent.username, gameSession.id);
-        }, 2000);
+        onMatchFound(opponent.user_id, opponent.username, gameSession.id);
 
         return;
       }
@@ -203,9 +200,7 @@ const RealTimeMatching = ({
               setMatchedOpponent({ id: data.user_id, name: data.username });
               setIsSearching(false);
               setShowNoMatchMessage(false);
-              setTimeout(() => {
-                onMatchFound(data.user_id, data.username, updated.game_session_id!);
-              }, 2000);
+              onMatchFound(data.user_id, data.username, updated.game_session_id!);
             }
           }
         }
@@ -271,15 +266,15 @@ const RealTimeMatching = ({
           {matchedOpponent 
             ? "Match Found!" 
             : showNoMatchMessage 
-              ? "No Player Found Yet" 
-              : "Searching for Opponent..."
+              ? "No player found" 
+              : "Searching opponent…"
           }
         </h2>
         <p className="text-muted-foreground text-sm md:text-base">
           {matchedOpponent 
             ? "Get ready to flip!" 
             : showNoMatchMessage
-              ? `Still waiting for someone who chose ${oppositeChoice.toUpperCase()}...`
+              ? "You can still be matched when someone joins"
               : `Looking for someone who chose ${oppositeChoice.toUpperCase()}`
           }
         </p>
@@ -296,7 +291,7 @@ const RealTimeMatching = ({
             <div className="flex flex-col items-center gap-3">
               <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full bg-amber-500/20 border border-amber-500/40">
                 <UserX className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
-                <span className="text-amber-500 font-semibold text-sm md:text-base">Waiting for late join...</span>
+                <span className="text-amber-500 font-semibold text-sm md:text-base">You can still be matched</span>
               </div>
               <motion.div
                 animate={{ rotate: 360 }}
@@ -404,7 +399,7 @@ const RealTimeMatching = ({
                 </AnimatePresence>
               </div>
               <h3 className="text-sm md:text-xl font-bold text-foreground mb-1 truncate">
-                {matchedOpponent ? matchedOpponent.name : showNoMatchMessage ? "Waiting..." : "Searching..."}
+                {matchedOpponent ? matchedOpponent.name : showNoMatchMessage ? "No player found" : "Searching…"}
               </h3>
               <div className="text-xs md:text-sm text-muted-foreground mb-2">Opponent</div>
               {matchedOpponent && (
@@ -443,8 +438,8 @@ const RealTimeMatching = ({
         <p className="text-xs md:text-sm text-muted-foreground">
           {isSearching && !matchedOpponent 
             ? showNoMatchMessage
-              ? "You can still be matched when another player joins"
-              : `Waiting for a player who chose ${oppositeChoice.toUpperCase()}...` 
+              ? "You can still be matched when someone joins"
+              : `Waiting for a player who chose ${oppositeChoice.toUpperCase()}` 
             : "Starting game..."
           }
         </p>

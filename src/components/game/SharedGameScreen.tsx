@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import CoinFlip from "./CoinFlip";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface SharedGameScreenProps {
   gameSessionId: string;
@@ -107,9 +108,9 @@ const SharedGameScreen = ({
 
           if (updated.status === "completed" && updated.flip_result && !completedRef.current) {
             completedRef.current = true;
-            // Show the flip animation with the result from the database
+            setIsFlipping(true);
+            setHasFlipped(true);
             setResult(updated.flip_result as "heads" | "tails");
-            
             const didWin = updated.winner_id === userId;
             setTimeout(() => {
               onGameComplete(didWin ? "win" : "loss", didWin ? winAmount : 0);
@@ -126,19 +127,21 @@ const SharedGameScreen = ({
 
   const handleFlip = async () => {
     if (hasFlipped || isFlipping) return;
-    
+
     setHasFlipped(true);
     setWaitingForOther(true);
 
-    // First, check if someone else already flipped
+    // If someone else already flipped, sync from DB and wait for realtime
     const { data: currentSession } = await supabase
       .from("game_sessions")
       .select("*")
       .eq("id", gameSessionId)
       .single();
 
-    if (currentSession && (currentSession.status === "flipping" || currentSession.status === "completed")) {
-      // Someone else already started the flip, just wait for result
+    if (
+      currentSession &&
+      (currentSession.status === "flipping" || currentSession.status === "completed")
+    ) {
       setIsFlipping(true);
       setWaitingForOther(false);
       if (currentSession.flip_result && !completedRef.current) {
@@ -152,66 +155,29 @@ const SharedGameScreen = ({
       return;
     }
 
-    setIsFlipping(true);
+    // Request server to generate result once; both clients get it via realtime
+    const { error } = await supabase.functions.invoke("execute-coin-flip", {
+      body: { gameSessionId },
+    });
+
     setWaitingForOther(false);
 
-    // Generate the result ONCE server-side - this is the canonical result
-    const flipResult: "heads" | "tails" = Math.random() > 0.5 ? "heads" : "tails";
-    
-    // Determine winner based on result
-    // Player1 has player1_choice, Player2 has player2_choice
-    // Find out which player we are and determine winner
-    let winnerId: string;
-    if (currentSession) {
-      const player1Choice = currentSession.player1_choice;
-      const player2Choice = currentSession.player2_choice;
-      
-      if (flipResult === player1Choice) {
-        winnerId = currentSession.player1_id;
-      } else {
-        winnerId = currentSession.player2_id;
+    if (error) {
+      const msg = (error as { message?: string })?.message ?? String(error);
+      const isAlreadyFlipped =
+        msg.includes("Already flipped") || msg.includes("409");
+      if (isAlreadyFlipped) {
+        // Other player flipped; realtime will deliver result
+        setIsFlipping(true);
+        return;
       }
-    } else {
-      // Fallback - shouldn't happen but handle gracefully
-      winnerId = flipResult === playerChoice ? userId : opponentInfo.id;
+      toast.error("Flip failed. Try again.");
+      setHasFlipped(false);
+      return;
     }
 
-    // Update game session with flipping status first
-    await supabase
-      .from("game_sessions")
-      .update({ 
-        status: "flipping",
-        flipped_at: new Date().toISOString()
-      })
-      .eq("id", gameSessionId)
-      .eq("status", "waiting"); // Only update if still waiting (prevent race condition)
-
-    // After 2 seconds, update with the result
-    setTimeout(async () => {
-      setResult(flipResult);
-      
-      // Use conditional update to prevent race conditions
-      const { data: updateResult } = await supabase
-        .from("game_sessions")
-        .update({ 
-          status: "completed",
-          flip_result: flipResult,
-          winner_id: winnerId,
-          completed_at: new Date().toISOString()
-        })
-        .eq("id", gameSessionId)
-        .eq("status", "flipping") // Only update if we're the one who set flipping
-        .select();
-
-      // If update succeeded, we're the one who set the result
-      if (updateResult && updateResult.length > 0 && !completedRef.current) {
-        completedRef.current = true;
-        const didWin = winnerId === userId;
-        setTimeout(() => {
-          onGameComplete(didWin ? "win" : "loss", didWin ? winAmount : 0);
-        }, 1500);
-      }
-    }, 2000);
+    // Success: server will update game_sessions; realtime listener sets result
+    setIsFlipping(true);
   };
 
   return (

@@ -28,7 +28,7 @@ const NoMatchFound = ({ playerChoice, onRetry, onBack }: NoMatchFoundProps) => {
         transition={{ delay: 0.2 }}
         className="text-2xl md:text-3xl font-bold text-foreground text-center mb-4"
       >
-        No Match Found
+        No player found
       </motion.h2>
 
       <motion.p
@@ -37,7 +37,7 @@ const NoMatchFound = ({ playerChoice, onRetry, onBack }: NoMatchFoundProps) => {
         transition={{ delay: 0.3 }}
         className="text-muted-foreground text-center mb-8 max-w-md"
       >
-        No one chose <span className="text-gold font-semibold uppercase">{oppositeChoice}</span> within 30 seconds. 
+        No one chose <span className="text-gold font-semibold uppercase">{oppositeChoice}</span> within 30 seconds.
         Try again or choose a different option.
       </motion.p>
 
