@@ -187,21 +187,21 @@ const RealTimeMatching = ({
         async (payload) => {
           const updated = payload.new as QueueEntry;
           if (updated.status === "matched" && updated.matched_with && updated.game_session_id) {
-            // Someone matched with us, find their info
+            // Someone matched with us — navigate to same game session immediately so both connect to same game id
             const { data } = await supabase
               .from("matchmaking_queue")
               .select("username, user_id")
               .eq("user_id", updated.matched_with)
               .order("created_at", { ascending: false })
               .limit(1)
-              .single();
+              .maybeSingle();
 
-            if (data) {
-              setMatchedOpponent({ id: data.user_id, name: data.username });
-              setIsSearching(false);
-              setShowNoMatchMessage(false);
-              onMatchFound(data.user_id, data.username, updated.game_session_id!);
-            }
+            const opponentId = updated.matched_with;
+            const opponentName = data?.username ?? "Opponent";
+            setMatchedOpponent({ id: opponentId, name: opponentName });
+            setIsSearching(false);
+            setShowNoMatchMessage(false);
+            onMatchFound(opponentId, opponentName, updated.game_session_id);
           }
         }
       )
