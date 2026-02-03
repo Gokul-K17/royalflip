@@ -44,7 +44,6 @@ const SharedGameScreen = ({
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [hasFlipped, setHasFlipped] = useState(false);
   const [countdown, setCountdown] = useState(5);
-  const [countdownStarted, setCountdownStarted] = useState(false);
   const completedRef = useRef(false);
 
   const winAmount = betAmount * 2;
@@ -128,23 +127,16 @@ const SharedGameScreen = ({
 
   // Start countdown only once we know the session is waiting
   useEffect(() => {
-    if (countdownStarted || hasFlipped || isFlipping) return;
+    if (hasFlipped || isFlipping) return;
     if (!gameSession || gameSession.status !== "waiting") return;
+    if (countdown <= 0) return;
     
-    setCountdownStarted(true);
-    
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
+    const timer = setTimeout(() => {
+      setCountdown((prev) => prev - 1);
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [countdownStarted, hasFlipped, isFlipping, gameSession]);
+    return () => clearTimeout(timer);
+  }, [countdown, hasFlipped, isFlipping, gameSession]);
 
   // Trigger flip when countdown reaches 0
   useEffect(() => {
@@ -199,9 +191,7 @@ const SharedGameScreen = ({
       }
       toast.error("Flip failed. Try again.");
       setHasFlipped(false);
-      // Short retry window so users can attempt again without leaving
       setCountdown(3);
-      setCountdownStarted(false);
       return;
     }
 
