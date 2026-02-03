@@ -44,6 +44,7 @@ const SharedGameScreen = ({
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [hasFlipped, setHasFlipped] = useState(false);
   const [countdown, setCountdown] = useState(5);
+  const countdownEndsAtRef = useRef<number | null>(null);
   const completedRef = useRef(false);
 
   const winAmount = betAmount * 2;
@@ -125,18 +126,32 @@ const SharedGameScreen = ({
     };
   }, [gameSessionId, userId, onGameComplete, winAmount, isFlipping]);
 
-  // Start countdown only once we know the session is waiting
+  // Start a stable countdown (based on wall-clock time) once the session is waiting.
+  // This avoids getting stuck at "5" if realtime updates cause effect cleanups.
   useEffect(() => {
     if (hasFlipped || isFlipping) return;
     if (!gameSession || gameSession.status !== "waiting") return;
-    if (countdown <= 0) return;
-    
-    const timer = setTimeout(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
 
-    return () => clearTimeout(timer);
-  }, [countdown, hasFlipped, isFlipping, gameSession]);
+    if (!countdownEndsAtRef.current) {
+      countdownEndsAtRef.current = Date.now() + 5000;
+      setCountdown(5);
+    }
+
+    const interval = setInterval(() => {
+      const endsAt = countdownEndsAtRef.current;
+      if (!endsAt) return;
+
+      const remainingMs = endsAt - Date.now();
+      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+      setCountdown(remainingSeconds);
+
+      if (remainingSeconds <= 0) {
+        clearInterval(interval);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [gameSession?.status, hasFlipped, isFlipping]);
 
   // Trigger flip when countdown reaches 0
   useEffect(() => {
@@ -191,6 +206,7 @@ const SharedGameScreen = ({
       }
       toast.error("Flip failed. Try again.");
       setHasFlipped(false);
+      countdownEndsAtRef.current = Date.now() + 3000;
       setCountdown(3);
       return;
     }
