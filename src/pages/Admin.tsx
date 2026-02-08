@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+
 import { toast } from "sonner";
-import { ArrowLeft, Send, Users, Shield, Crown, Loader2, Wallet, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Send, Users, Shield, Loader2, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface UserProfile {
@@ -35,9 +35,6 @@ const Admin = () => {
   const [giveAmount, setGiveAmount] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [forceHeads, setForceHeads] = useState(false);
-  const [forceTails, setForceTails] = useState(false);
-  const [remainingFlips, setRemainingFlips] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [processingWithdrawal, setProcessingWithdrawal] = useState<string | null>(null);
@@ -69,7 +66,6 @@ const Admin = () => {
 
     setIsAdmin(true);
     fetchUsers();
-    fetchForcedResults();
     fetchWithdrawalRequests();
 
     // Subscribe to withdrawal request changes
@@ -116,21 +112,6 @@ const Admin = () => {
     }
   };
 
-  const fetchForcedResults = async () => {
-    const { data } = await supabase
-      .from("forced_results")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (data) {
-      setForceHeads(data.result === "heads");
-      setForceTails(data.result === "tails");
-      setRemainingFlips(data.remaining_flips);
-    }
-  };
 
   const fetchWithdrawalRequests = async () => {
     const { data } = await supabase
@@ -196,49 +177,6 @@ const Admin = () => {
     }
   };
 
-  const handleForceResult = async (result: "heads" | "tails", enabled: boolean) => {
-    if (result === "heads") {
-      setForceHeads(enabled);
-      if (enabled) setForceTails(false);
-    } else {
-      setForceTails(enabled);
-      if (enabled) setForceHeads(false);
-    }
-
-    if (!enabled) {
-      // Disable all forced results
-      await supabase
-        .from("forced_results")
-        .update({ is_active: false })
-        .eq("is_active", true);
-      setRemainingFlips(0);
-      toast.info("Forced results disabled");
-      return;
-    }
-
-    // Create new forced result
-    await supabase
-      .from("forced_results")
-      .update({ is_active: false })
-      .eq("is_active", true);
-
-    const { error: insertError } = await supabase
-      .from("forced_results")
-      .insert({
-        result,
-        remaining_flips: 10,
-        created_by: currentUserId,
-        is_active: true
-      });
-
-    if (insertError) {
-      toast.error("Failed to set forced result");
-      return;
-    }
-
-    setRemainingFlips(10);
-    toast.success(`Next 10 flips will be ${result.toUpperCase()}`);
-  };
 
   const handleApproveWithdrawal = async (requestId: string) => {
     setProcessingWithdrawal(requestId);
@@ -407,7 +345,7 @@ const Admin = () => {
       </div>
 
       <Tabs defaultValue="withdrawals" className="space-y-4">
-        <TabsList className="grid grid-cols-3 w-full max-w-lg mx-auto">
+        <TabsList className="grid grid-cols-2 w-full max-w-lg mx-auto">
           <TabsTrigger value="withdrawals" className="relative">
             Withdrawals
             {pendingRequests.length > 0 && (
@@ -417,7 +355,6 @@ const Admin = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="game">Game Control</TabsTrigger>
         </TabsList>
 
         {/* Withdrawals Tab */}
@@ -654,50 +591,6 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        {/* Game Control Tab */}
-        <TabsContent value="game">
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-              <Crown className="w-5 h-5 text-primary" />
-              Game Result Control
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Force next 10 coin flips in Money Based Mode only
-            </p>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg">
-                <div>
-                  <p className="font-medium text-foreground">Force Heads</p>
-                  <p className="text-xs text-muted-foreground">Next 10 flips will be heads</p>
-                </div>
-                <Switch
-                  checked={forceHeads}
-                  onCheckedChange={(checked) => handleForceResult("heads", checked)}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg">
-                <div>
-                  <p className="font-medium text-foreground">Force Tails</p>
-                  <p className="text-xs text-muted-foreground">Next 10 flips will be tails</p>
-                </div>
-                <Switch
-                  checked={forceTails}
-                  onCheckedChange={(checked) => handleForceResult("tails", checked)}
-                />
-              </div>
-
-              {remainingFlips > 0 && (
-                <div className="text-center p-2 bg-primary/10 rounded-lg">
-                  <p className="text-sm text-primary">
-                    {remainingFlips} forced flips remaining
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
       </Tabs>
     </div>
   );
