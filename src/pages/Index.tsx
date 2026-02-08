@@ -286,10 +286,17 @@ const Index = () => {
 
   if (!user) return null;
 
+  // Hide header/navigation during active game stages
+  const isInActiveGame = ["matching", "realtime-matching", "game", "no-match"].includes(gameStage);
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      <WinTicker />
+      {!isInActiveGame && (
+        <>
+          <Header />
+          <WinTicker />
+        </>
+      )}
       
       {gameStage === "mode" && (
         <ModeSelection onSelectMode={handleModeSelect} balance={userBalance} />
