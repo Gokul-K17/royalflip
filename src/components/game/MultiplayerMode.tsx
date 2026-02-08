@@ -413,14 +413,6 @@ const MultiplayerMode = ({
             <span>{kingBets.length} players</span>
           </div>
 
-          {/* King Bets List - Show only amounts */}
-          <div className="mt-3 max-h-32 overflow-y-auto space-y-1">
-            {kingBets.map((bet, index) => (
-              <div key={bet.id || index} className="text-xs text-amber-400/80 text-center">
-                ₹{bet.amount}
-              </div>
-            ))}
-          </div>
         </motion.div>
 
         {/* Tail Army */}
@@ -444,14 +436,6 @@ const MultiplayerMode = ({
             <span>{tailBets.length} players</span>
           </div>
 
-          {/* Tail Bets List - Show only amounts */}
-          <div className="mt-3 max-h-32 overflow-y-auto space-y-1">
-            {tailBets.map((bet, index) => (
-              <div key={bet.id || index} className="text-xs text-slate-400/80 text-center">
-                ₹{bet.amount}
-              </div>
-            ))}
-          </div>
         </motion.div>
       </div>
 
