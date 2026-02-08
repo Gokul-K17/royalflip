@@ -2,13 +2,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const buildCorsHeaders = (origin: string | null) => ({
-  // Echo the caller origin so browsers accept the response (works with credentials too)
   "Access-Control-Allow-Origin": origin ?? "*",
   "Vary": "Origin",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 });
+
+// Cryptographically secure random coin flip
+function secureRandomFlip(): "heads" | "tails" {
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  return array[0] % 2 === 0 ? "heads" : "tails";
+}
+
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("Origin"));
@@ -26,10 +35,23 @@ serve(async (req) => {
       );
     }
 
-    const { gameSessionId } = await req.json();
-    if (!gameSessionId) {
+    // Parse and validate input
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: "Missing gameSessionId" }),
+        JSON.stringify({ error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { gameSessionId } = body as { gameSessionId?: unknown };
+    
+    // Validate gameSessionId is a valid UUID
+    if (!gameSessionId || typeof gameSessionId !== "string" || !UUID_REGEX.test(gameSessionId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or missing gameSessionId" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -88,8 +110,8 @@ serve(async (req) => {
       );
     }
 
-    const flipResult: "heads" | "tails" =
-      Math.random() > 0.5 ? "heads" : "tails";
+    // Use cryptographically secure random for the coin flip
+    const flipResult = secureRandomFlip();
     const player1Choice = session.player1_choice as string;
     const winnerId =
       flipResult === player1Choice ? player1Id : player2Id;
@@ -109,9 +131,10 @@ serve(async (req) => {
       .select();
 
     if (updateError) {
-      console.error("Execute flip update error:", updateError);
+      // Log sanitized error (no sensitive details)
+      console.error("Execute flip update failed");
       return new Response(
-        JSON.stringify({ error: updateError.message }),
+        JSON.stringify({ error: "Failed to update game session" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -128,11 +151,10 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Execute coin flip error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    // Log only that an error occurred, not the details
+    console.error("Execute coin flip: unexpected error");
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: "An unexpected error occurred" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
