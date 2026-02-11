@@ -161,7 +161,7 @@ const InfoPanel = () => {
                 Found a bug or have feedback? Send us an email and we'll look into it right away.
               </p>
               <a
-                href="mailto:notifications.projects@gmail.com?subject=RoyalFlip%20-%20Issue%20Report"
+                href="mailto:notifications.myprojects@gmail.com?subject=RoyalFlip%20-%20Issue%20Report"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gold text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
               >
                 <Mail className="w-4 h-4" />
