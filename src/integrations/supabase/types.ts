@@ -62,6 +62,33 @@ export type Database = {
         }
         Relationships: []
       }
+      email_verifications: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token: string
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          user_id?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
       forced_results: {
         Row: {
           created_at: string
@@ -256,11 +283,42 @@ export type Database = {
         }
         Relationships: []
       }
+      password_resets: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          token: string
+          used: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          token: string
+          used?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          used?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           account_status: string | null
           created_at: string
           email: string
+          email_verified: boolean
           id: string
           kyc_status: string | null
           last_login: string | null
@@ -274,6 +332,7 @@ export type Database = {
           account_status?: string | null
           created_at?: string
           email: string
+          email_verified?: boolean
           id: string
           kyc_status?: string | null
           last_login?: string | null
@@ -287,6 +346,7 @@ export type Database = {
           account_status?: string | null
           created_at?: string
           email?: string
+          email_verified?: boolean
           id?: string
           kyc_status?: string | null
           last_login?: string | null
