@@ -1,7 +1,10 @@
-import { Wallet, Trophy, Users, Settings, Crown, Sparkles, Zap } from "lucide-react";
+import { useState } from "react";
+import { Wallet, Trophy, Users, Info, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { GameMode } from "@/pages/Index";
 import { motion } from "framer-motion";
+import InfoPanel from "@/components/InfoPanel";
 
 interface ModeSelectionProps {
   onSelectMode: (mode: GameMode) => void;
@@ -24,9 +27,19 @@ const ModeSelection = ({ onSelectMode, balance }: ModeSelectionProps) => {
           <Wallet className="w-5 h-5 text-gold" />
           <span className="text-xl font-bold text-gold">₹ {balance.toLocaleString()}</span>
         </motion.div>
-        <Button variant="ghost" size="icon" className="rounded-full hover:bg-gold/10">
-          <Settings className="w-5 h-5 text-foreground" />
-        </Button>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-gold/10">
+              <Info className="w-5 h-5 text-foreground" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="bg-background border-border overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="text-foreground">Information</SheetTitle>
+            </SheetHeader>
+            <InfoPanel />
+          </SheetContent>
+        </Sheet>
       </motion.div>
 
       {/* Logo/Title */}
