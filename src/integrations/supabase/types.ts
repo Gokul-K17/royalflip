@@ -638,6 +638,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_daily_bonus: { Args: { p_user_id: string }; Returns: Json }
       complete_multiplayer_round: {
         Args: { p_round_id: string }
         Returns: Json
@@ -666,6 +667,18 @@ export type Database = {
           p_side: string
           p_user_id: string
           p_username: string
+        }
+        Returns: Json
+      }
+      record_game_result: {
+        Args: {
+          p_amount: number
+          p_mode: string
+          p_opponent_info?: Json
+          p_player_choice?: string
+          p_result: string
+          p_user_id: string
+          p_won_amount: number
         }
         Returns: Json
       }

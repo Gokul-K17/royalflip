@@ -8,3 +8,9 @@ verify_jwt = true
 
 [functions.send-auth-email]
 verify_jwt = false
+
+[functions.complete-multiplayer-round]
+verify_jwt = false
+
+[functions.execute-coin-flip]
+verify_jwt = false

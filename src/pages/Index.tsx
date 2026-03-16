@@ -162,84 +162,30 @@ const Index = () => {
     if (!user || !selectedAmount) return;
 
     try {
-      // Get current balance
-      const { data: wallet } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!wallet) return;
-
-      const currentBalance = parseFloat(wallet.balance.toString());
-      let newBalance: number;
-      let transactionType: string;
-      let transactionAmount: number;
-
-      if (result === "win" && wonAmount) {
-        // Winner gets double the entry fee (winAmount)
-        newBalance = currentBalance - selectedAmount + wonAmount;
-        transactionType = "win";
-        transactionAmount = wonAmount;
-        toast.success(`You won ₹${wonAmount}!`);
-      } else {
-        // Loser loses their entry fee
-        newBalance = currentBalance - selectedAmount;
-        transactionType = "loss";
-        transactionAmount = -selectedAmount;
-        toast.error(`You lost ₹${selectedAmount}`);
-      }
-
-      // Update wallet balance
-      await supabase
-        .from("wallets")
-        .update({ balance: newBalance })
-        .eq("user_id", user.id);
-
-      // Record transaction
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        type: transactionType,
-        amount: Math.abs(transactionAmount),
-        balance_after: newBalance,
-        status: "completed",
-        game_details: {
-          mode: selectedMode,
-          entry_fee: selectedAmount,
-          result: result,
-          player_choice: playerChoice,
-          opponent: opponentInfo,
-        },
+      const { data, error } = await supabase.rpc("record_game_result", {
+        p_user_id: user.id,
+        p_amount: selectedAmount,
+        p_result: result,
+        p_won_amount: wonAmount || 0,
+        p_mode: selectedMode || "money",
+        p_player_choice: playerChoice || null,
+        p_opponent_info: opponentInfo ? { id: opponentInfo.id, name: opponentInfo.name } : null,
       });
 
-      // Update local balance
-      setUserBalance(newBalance);
+      if (error) throw error;
 
-      // Update user stats
-      const { data: stats } = await supabase
-        .from("user_stats")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-      if (stats) {
-        const newStats = {
-          total_games: stats.total_games + 1,
-          games_won: result === "win" ? stats.games_won + 1 : stats.games_won,
-          games_lost: result === "loss" ? stats.games_lost + 1 : stats.games_lost,
-          total_wagered: stats.total_wagered + selectedAmount,
-          total_winnings: result === "win" ? stats.total_winnings + (wonAmount || 0) : stats.total_winnings,
-          net_profit: result === "win" 
-            ? stats.net_profit + ((wonAmount || 0) - selectedAmount)
-            : stats.net_profit - selectedAmount,
-          win_rate: 0,
-        };
-        newStats.win_rate = (newStats.games_won / newStats.total_games) * 100;
-
-        await supabase
-          .from("user_stats")
-          .update(newStats)
-          .eq("user_id", user.id);
+      const res = data as { success: boolean; new_balance?: number; error?: string };
+      if (!res.success) {
+        toast.error(res.error || "Failed to record game result");
+      } else {
+        if (result === "win" && wonAmount) {
+          toast.success(`You won ₹${wonAmount}!`);
+        } else {
+          toast.error(`You lost ₹${selectedAmount}`);
+        }
+        if (res.new_balance !== undefined) {
+          setUserBalance(res.new_balance);
+        }
       }
     } catch (error) {
       console.error("Error updating game results:", error);
