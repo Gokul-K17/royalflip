@@ -221,9 +221,9 @@ const MultiplayerMode = ({
   const completeRound = async () => {
     if (!currentRound || currentRound.status !== "betting") return;
 
-    // Call the completion function
-    await supabase.rpc("complete_multiplayer_round", {
-      p_round_id: currentRound.id
+    // Call edge function with crypto-secure randomness
+    await supabase.functions.invoke("complete-multiplayer-round", {
+      body: { roundId: currentRound.id },
     });
   };
   const handlePlaceBet = async () => {

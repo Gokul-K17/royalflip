@@ -50,49 +50,23 @@ const DailyBonus = () => {
       return;
     }
 
-    const bonusAmount = 10.00;
-    const newStreak = streak + 1;
-
-    const { error: bonusError } = await supabase
-      .from("daily_bonuses")
-      .insert({
-        user_id: user.id,
-        bonus_amount: bonusAmount,
-        streak_days: newStreak,
+    try {
+      const { data, error } = await supabase.rpc("claim_daily_bonus", {
+        p_user_id: user.id,
       });
 
-    if (bonusError) {
-      toast.error("Failed to claim bonus");
-      setLoading(false);
-      return;
-    }
+      if (error) throw error;
 
-    const { data: wallet } = await supabase
-      .from("wallets")
-      .select("balance")
-      .eq("user_id", user.id)
-      .single();
-
-    if (wallet) {
-      const newBalance = parseFloat(wallet.balance.toString()) + bonusAmount;
-      
-      await supabase
-        .from("wallets")
-        .update({ bonus_balance: newBalance })
-        .eq("user_id", user.id);
-
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        type: "bonus",
-        amount: bonusAmount,
-        status: "completed",
-        balance_after: newBalance,
-        processed_at: new Date().toISOString(),
-      });
-
-      toast.success(`Daily bonus claimed! +₹${bonusAmount} (${newStreak} day streak)`);
-      setCanClaim(false);
-      setStreak(newStreak);
+      const res = data as { success: boolean; bonus_amount?: number; streak?: number; error?: string };
+      if (!res.success) {
+        toast.error(res.error || "Failed to claim bonus");
+      } else {
+        toast.success(`Daily bonus claimed! +₹${res.bonus_amount} (${res.streak} day streak)`);
+        setCanClaim(false);
+        setStreak(res.streak || 0);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to claim bonus");
     }
 
     setLoading(false);
